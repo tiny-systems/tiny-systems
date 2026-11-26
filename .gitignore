@@ -6,3 +6,5 @@ frontend/dist/*
 *.p12
 *.cer
 /tiny-systems
+build/web/
+frontend/web/demo.json
