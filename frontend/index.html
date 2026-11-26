@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tiny Systems</title>
+</head>
+<body>
+  <div class="app">
+    <aside class="rail">
+      <div class="drag"></div>
+      <div class="brand">
+        <svg class="mark" viewBox="0 0 32 32" fill="none" aria-hidden="true">
+          <path d="M16 18 C16 14.5 16 12.5 16 9.5" stroke="#188A3C" stroke-width="2.4" stroke-linecap="round"/>
+          <g class="sway">
+            <path d="M16 11 C15 7.8 12.5 5.8 8.8 5.5 C9 9.5 11.5 11.6 16 11 Z" fill="#188A3C"/>
+            <path d="M16 11 C16.3 6.8 19 4.2 23.5 4 C23.3 8.9 20.5 11.4 16 11 Z" fill="#2FC25B"/>
+          </g>
+          <rect x="8.5" y="18" width="15" height="3.2" rx="1.4" fill="#22A447"/>
+          <path d="M10.5 22 H21.5 L20.4 28.4 C20.3 29.1 19.6 29.5 19 29.5 H13 C12.4 29.5 11.7 29.1 11.6 28.4 Z" fill="#20281F"/>
+        </svg>
+        <div class="wordmark">Tiny Systems</div>
+      </div>
+      <div class="label">Greenhouses</div>
+      <nav id="fleets" class="fleets" aria-label="Fleets"></nav>
+      <div class="rail-foot">
+        <span id="version"></span>
+        <a href="#" id="docs">tinysystems.io</a>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="bar">
+        <div class="bar-title">
+          <h1 id="fleet-name">—</h1>
+          <span id="fleet-sub" class="sub"></span>
+        </div>
+        <div class="bar-actions">
+          <span id="read-at" class="sub"></span>
+          <button id="new-btn" class="btn primary">New session</button>
+        </div>
+      </header>
+
+      <div id="fleet-error" class="error" hidden></div>
+      <section id="loose" class="loose" hidden></section>
+
+      <div class="split" id="split">
+        <section class="table-wrap">
+          <table class="sessions">
+            <thead>
+              <tr><th class="g" aria-label="State"></th><th>Session</th><th>What it's doing</th><th class="num">CPU</th><th class="num">Mem</th><th class="num">Age</th><th class="acts"></th></tr>
+            </thead>
+            <tbody id="rows"></tbody>
+          </table>
+          <div id="empty" class="empty" hidden>
+            <div id="empty-plant"></div>
+            <p>Nothing planted here yet.</p>
+            <button class="btn" id="empty-new">Start one</button>
+          </div>
+        </section>
+
+        <section class="term-pane" id="term-pane" hidden>
+          <div class="tabs" id="tabs" role="tablist"></div>
+          <div class="term-host" id="term-host"></div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <dialog id="new-dialog" class="dialog">
+    <form id="new-form" method="dialog">
+      <h2>New session</h2>
+      <label>Task <textarea name="task" rows="4" placeholder="Fix the flaky checkout test and open a PR"></textarea></label>
+      <label>Repository <input name="repo" placeholder="https://github.com/acme/app (optional)"></label>
+      <div class="row2">
+        <label>Agent
+          <select name="agent"><option value="">Claude Code</option><option value="codex">Codex</option></select>
+        </label>
+        <label>Model <input name="model" placeholder="default"></label>
+      </div>
+      <label>Image <input name="image" placeholder="default agent image, or golang:1.26"></label>
+      <p class="hint">Leave the task empty to start an idle session and open its terminal.</p>
+      <div class="dialog-actions">
+        <button type="button" class="btn" value="cancel" id="new-cancel">Cancel</button>
+        <button type="submit" class="btn primary" value="ok">Start</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="confirm-dialog" class="dialog">
+    <form method="dialog">
+      <h2 id="confirm-title"></h2>
+      <p id="confirm-body"></p>
+      <div class="dialog-actions">
+        <button class="btn" value="cancel">Cancel</button>
+        <button class="btn danger" value="ok" id="confirm-ok">Delete</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" hidden></div>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

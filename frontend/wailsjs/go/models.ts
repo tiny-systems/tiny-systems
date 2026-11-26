@@ -1,0 +1,164 @@
+export namespace main {
+	
+	export class Asking {
+	    name: string;
+	    text: string;
+	    options?: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new Asking(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.text = source["text"];
+	        this.options = source["options"];
+	    }
+	}
+	export class Row {
+	    name: string;
+	    parent?: string;
+	    depth: number;
+	    phase: string;
+	    glyph: string;
+	    title: string;
+	    activity: string;
+	    message: string;
+	    task: string;
+	    cpu: string;
+	    mem: string;
+	    age: string;
+	    paused: boolean;
+	    command: boolean;
+	    question?: Asking;
+	    exit?: number;
+	    attachable: boolean;
+	    tags?: string[];
+	
+	    static createFrom(source: any = {}) {
+	        return new Row(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.parent = source["parent"];
+	        this.depth = source["depth"];
+	        this.phase = source["phase"];
+	        this.glyph = source["glyph"];
+	        this.title = source["title"];
+	        this.activity = source["activity"];
+	        this.message = source["message"];
+	        this.task = source["task"];
+	        this.cpu = source["cpu"];
+	        this.mem = source["mem"];
+	        this.age = source["age"];
+	        this.paused = source["paused"];
+	        this.command = source["command"];
+	        this.question = this.convertValues(source["question"], Asking);
+	        this.exit = source["exit"];
+	        this.attachable = source["attachable"];
+	        this.tags = source["tags"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class Target {
+	    name: string;
+	    context: string;
+	    namespace: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Target(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.context = source["context"];
+	        this.namespace = source["namespace"];
+	    }
+	}
+	export class Fleet {
+	    target: Target;
+	    rows: Row[];
+	    loose?: Asking[];
+	    readAt: string;
+	    needsYou: number;
+	    running: number;
+	    error?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Fleet(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.target = this.convertValues(source["target"], Target);
+	        this.rows = this.convertValues(source["rows"], Row);
+	        this.loose = this.convertValues(source["loose"], Asking);
+	        this.readAt = source["readAt"];
+	        this.needsYou = source["needsYou"];
+	        this.running = source["running"];
+	        this.error = source["error"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class NewSessionRequest {
+	    task: string;
+	    repo: string;
+	    agent: string;
+	    model: string;
+	    image: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new NewSessionRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.task = source["task"];
+	        this.repo = source["repo"];
+	        this.agent = source["agent"];
+	        this.model = source["model"];
+	        this.image = source["image"];
+	    }
+	}
+	
+
+}
+
