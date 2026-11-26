@@ -213,6 +213,9 @@ func freeAPIPort() int {
 // Health reads what can quietly break a fleet; see fleet.Health.
 func (a *App) Health(t Target) (fleet.Health, error) {
 	var h fleet.Health
+	if isDemo(t) {
+		return fleet.Health{SignIn: fleet.SignInStored}, nil
+	}
 	err := a.withStore(t, func(ctx context.Context, s *fleet.Client) error {
 		var err error
 		h, err = s.Health(ctx)

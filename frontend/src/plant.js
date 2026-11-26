@@ -1,49 +1,64 @@
-// A potted seedling whose shape says what a session is doing. Pure SVG,
-// animated with CSS (style.css, .plant-*). The pot and stem follow the
-// website's sprout mark.
+// Plants: a helper's state, drawn. In the garden bed they grow straight
+// from the soil; elsewhere (the logo, small places) they sit in a pot.
+// Shapes are fixed strings, never data. Animation lives in style.css.
 
-const POT = `
-  <rect class="rim" x="8.5" y="18" width="15" height="3.2" rx="1.4"/>
-  <path class="pot" d="M10.5 22 H21.5 L20.4 28.4 C20.3 29.1 19.6 29.5 19 29.5 H13 C12.4 29.5 11.7 29.1 11.6 28.4 Z"/>`;
+const LEAF = (x, y, flip, cls) => {
+  const s = flip ? -1 : 1;
+  return `<g class="${cls}" transform="translate(${x} ${y}) scale(${s} 1)">
+    <path class="leaf" d="M0 0 C-4 -2 -11 -2 -16 -9 C-9 -12 -2 -8 0 0 Z"/>
+    <path class="vein" d="M0 0 C-5 -3 -9 -5 -13 -8"/>
+  </g>`;
+};
 
 const SHAPES = {
-  // A seed cracking the soil.
   seed: `
-    <g class="sprout-up"><path class="stem" d="M16 18 C16 16.8 16 16 16 15"/>
-    <ellipse class="seed" cx="16" cy="14.6" rx="1.9" ry="1.4"/></g>`,
-  // Two leaves, swaying.
+    <g class="sprout-up">
+      <path class="stem" d="M40 64 C40 60 40 57 40 54"/>
+      <ellipse class="seed" cx="40" cy="53" rx="5" ry="3.6"/>
+      <path class="seed-crack" d="M37 52 C39 54 41 51 43 53"/>
+    </g>`,
   grow: `
-    <path class="stem" d="M16 18 C16 14.5 16 12.5 16 9.5"/>
+    <path class="stem" d="M40 64 C40 52 41 40 40 26"/>
     <g class="sway">
-      <path class="leaf-l" d="M16 11 C15 7.8 12.5 5.8 8.8 5.5 C9 9.5 11.5 11.6 16 11 Z"/>
-      <path class="leaf-r" d="M16 11 C16.3 6.8 19 4.2 23.5 4 C23.3 8.9 20.5 11.4 16 11 Z"/>
+      ${LEAF(40, 46, false, 'l1')}
+      ${LEAF(40, 38, true, 'l2')}
+      ${LEAF(40, 30, false, 'l3')}
+      <g class="tip"><path class="leaf hi" d="M40 27 C36 20 37 13 41 9 C45 14 45 21 40 27 Z"/></g>
     </g>`,
-  // A closed bud waiting for a person.
   ask: `
-    <path class="stem" d="M16 18 C16 14.5 16 12.5 16 9.5"/>
-    <path class="leaf-l" d="M16 14 C15 11.6 13 10.2 10.2 10 C10.4 13 12.4 14.5 16 14 Z"/>
-    <path class="leaf-r" d="M16 14 C17 11.6 19 10.2 21.8 10 C21.6 13 19.6 14.5 16 14 Z"/>
-    <g class="bud"><path d="M16 9.6 C13.6 8.6 13.4 5.4 16 3.6 C18.6 5.4 18.4 8.6 16 9.6 Z"/></g>`,
-  // In flower.
-  done: `
-    <path class="stem" d="M16 18 C16 14.5 16 12.5 16 9.5"/>
-    <path class="leaf-l" d="M16 14 C15 11.6 13 10.2 10.2 10 C10.4 13 12.4 14.5 16 14 Z"/>
-    <path class="leaf-r" d="M16 14 C17 11.6 19 10.2 21.8 10 C21.6 13 19.6 14.5 16 14 Z"/>
-    <g class="bloom">
-      <circle class="petal" cx="16" cy="3.9" r="2.3"/><circle class="petal" cx="19.2" cy="6.3" r="2.3"/>
-      <circle class="petal" cx="18" cy="9.8" r="2.3"/><circle class="petal" cx="14" cy="9.8" r="2.3"/>
-      <circle class="petal" cx="12.8" cy="6.3" r="2.3"/><circle class="heart" cx="16" cy="7" r="1.8"/>
+    <path class="stem" d="M40 64 C40 52 40 42 40 30"/>
+    ${LEAF(40, 50, false, 'l1')}
+    ${LEAF(40, 43, true, 'l2')}
+    <g class="bud">
+      <path class="bud-back" d="M40 31 C33 28 33 17 40 11 C47 17 47 28 40 31 Z"/>
+      <path class="bud-front" d="M40 31 C36 27 36 19 40 14 C44 19 44 27 40 31 Z"/>
     </g>`,
-  // Wilted.
+  done: `
+    <path class="stem" d="M40 64 C40 52 40 42 40 30"/>
+    ${LEAF(40, 52, false, 'l1')}
+    ${LEAF(40, 45, true, 'l2')}
+    <g class="bloom">
+      <circle class="petal" cx="40" cy="13" r="6"/><circle class="petal" cx="48.5" cy="19" r="6"/>
+      <circle class="petal" cx="45.5" cy="28.5" r="6"/><circle class="petal" cx="34.5" cy="28.5" r="6"/>
+      <circle class="petal" cx="31.5" cy="19" r="6"/><circle class="heart" cx="40" cy="21" r="4.6"/>
+    </g>`,
   fail: `
-    <path class="stem" d="M16 18 C16 15 16.5 13 18.5 11.5"/>
-    <path class="leaf-l" d="M17.4 12.6 C14.5 12.4 12.4 14 11.6 17 C14.6 16.9 16.6 15.4 17.4 12.6 Z"/>
-    <path class="leaf-r" d="M18.5 11.5 C21.4 11 23.2 12.6 23.6 15.6 C20.7 15.8 19 14.2 18.5 11.5 Z"/>`,
-  // Dormant: a stub and one folded leaf.
+    <path class="stem" d="M40 64 C40 54 42 46 48 40"/>
+    <g class="droop">
+      ${LEAF(43, 50, false, 'l1')}
+      ${LEAF(47, 42, true, 'l2')}
+      <path class="leaf" d="M48 40 C52 41 55 45 55 51 C51 49 48 45 48 40 Z"/>
+    </g>`,
   rest: `
-    <path class="stem" d="M16 18 C16 16 16 14.5 16 13"/>
-    <path class="leaf-r" d="M16 14 C16.6 11.8 18.4 10.8 20.6 11 C20.2 13.4 18.4 14.4 16 14 Z"/>`,
+    <path class="stem" d="M40 64 C40 58 40 52 40 47"/>
+    ${LEAF(40, 52, true, 'l1')}
+    <path class="leaf" d="M40 47 C37 44 37 40 40 37 C43 40 43 44 40 47 Z"/>
+    <g class="zz"><text x="50" y="34">z</text><text x="56" y="26">z</text></g>`,
 };
+
+const POT = `
+  <path class="pot-rim" d="M23 62 H57 C58 62 58.5 62.5 58.5 63.5 V66 C58.5 67 58 67.5 57 67.5 H23 C22 67.5 21.5 67 21.5 66 V63.5 C21.5 62.5 22 62 23 62 Z"/>
+  <path class="pot" d="M25 67.5 H55 L52.5 78 C52.2 79.3 51 80 49.7 80 H30.3 C29 80 27.8 79.3 27.5 78 Z"/>`;
 
 export function plantKind(r) {
   if (r.question) return 'ask';
@@ -54,19 +69,59 @@ export function plantKind(r) {
   return 'seed';
 }
 
-export const PLANT_LABEL = {
-  seed: 'starting', grow: 'working', ask: 'waiting for you', done: 'finished', fail: 'failed', rest: 'paused',
+export const STATE = {
+  seed: 'Getting ready',
+  grow: 'Working',
+  ask: 'Needs you',
+  done: 'Finished',
+  fail: 'Stuck',
+  rest: 'Resting',
 };
 
-// plant returns an <svg> for a kind. Shapes are fixed strings, never data.
-export function plant(kind, size = 30) {
+// plant returns an <svg>. With pot, the plant sits in a pot (logo, small
+// places); without, it grows from the bottom edge into the garden bed.
+export function plant(kind, size = 96, { pot = false } = {}) {
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  svg.setAttribute('viewBox', '0 0 32 32');
+  svg.setAttribute('viewBox', pot ? '0 0 80 82' : '0 0 80 66');
   svg.setAttribute('width', size);
-  svg.setAttribute('height', size);
+  svg.setAttribute('height', pot ? size * 82 / 80 : size * 66 / 80);
   svg.setAttribute('class', `plant plant-${kind}`);
   svg.setAttribute('role', 'img');
-  svg.setAttribute('aria-label', PLANT_LABEL[kind]);
-  svg.innerHTML = (SHAPES[kind] || SHAPES.seed) + POT;
+  svg.setAttribute('aria-label', STATE[kind] || '');
+  svg.innerHTML = (SHAPES[kind] || SHAPES.seed) + (pot ? POT : '');
   return svg;
+}
+
+// A friendly name for a helper, the same every time for the same id.
+const NAMES = ['Basil', 'Fern', 'Mint', 'Sage', 'Clover', 'Thyme', 'Ivy', 'Moss', 'Juniper', 'Willow',
+  'Hazel', 'Rosemary', 'Olive', 'Poppy', 'Linden', 'Sorrel', 'Yarrow', 'Laurel', 'Rowan', 'Aster'];
+
+function hash(id) {
+  let h = 2166136261;
+  for (const c of id) h = Math.imul(h ^ c.charCodeAt(0), 16777619);
+  return Math.abs(h);
+}
+
+// Names already given out, so two helpers in a garden never share one.
+const given = new Map();
+
+// helperName gives a helper a friendly name, the same every time. A name
+// already taken by another helper moves to the next free one (with a
+// number once all are used).
+export function helperName(id) {
+  if (given.has(id)) return given.get(id);
+  const taken = new Set(given.values());
+  const start = hash(id) % NAMES.length;
+  for (let round = 0; ; round++) {
+    for (let i = 0; i < NAMES.length; i++) {
+      const n = NAMES[(start + i) % NAMES.length] + (round ? ` ${round + 1}` : '');
+      if (!taken.has(n)) { given.set(id, n); return n; }
+    }
+  }
+}
+
+// nameHelpers assigns names in a stable order (oldest id first), so the
+// same garden always gets the same names.
+export function nameHelpers(ids) {
+  for (const id of [...ids].sort()) helperName(id);
 }

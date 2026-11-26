@@ -4,17 +4,24 @@ The desktop app for [tiny](https://github.com/tiny-systems/tiny): one window
 to watch every fleet of coding agents, step into any session's terminal, and
 look after the machines they run on.
 
-Each fleet is a greenhouse and each session a potted seedling. You read its
-state from the plant:
+Your helpers live in gardens. A garden is a computer they work on: this
+Mac, or another one at home or in the office. Each helper is a plant in the
+garden's planter, and you can tell how it's doing at a glance:
 
-| plant | session |
+| plant | helper |
 |---|---|
-| a seed in the soil | starting |
-| two leaves, swaying | working |
-| an amber bud | waiting for you |
+| a seed in the soil | getting ready |
+| leaves swaying | working |
+| an amber bud, saying "Needs you" | waiting for your answer |
 | in flower | finished |
-| wilted | failed |
-| greyed out | paused |
+| wilted | stuck |
+| asleep | resting |
+
+Click a plant to see what it's doing, answer it, watch it work, let it rest
+or send it home.
+
+`TINY_DEMO=1` adds a demo garden with a helper in every state, for trying
+the look without a cluster (`TINY_DEMO_SELECT=s-fern` opens one).
 
 ## What it does today
 

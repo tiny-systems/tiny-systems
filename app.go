@@ -126,6 +126,9 @@ func (a *App) Version() string { return version }
 // the pinned target, so the app needs no setup of its own.
 func (a *App) Targets() []Target {
 	var out []Target
+	if demoOn() {
+		out = append(out, demoTarget())
+	}
 	seen := map[string]bool{}
 	add := func(t Target) {
 		key := t.Context + "/" + t.Namespace
@@ -167,6 +170,9 @@ func (a *App) Contexts() []string {
 // Fleet reads a target's sessions. Errors come back inside the result so
 // the window can show which fleet is unreachable without failing the rest.
 func (a *App) Fleet(t Target) Fleet {
+	if isDemo(t) {
+		return demoFleet()
+	}
 	f := Fleet{Target: t, ReadAt: time.Now().Format("15:04:05")}
 	store, err := a.store(t)
 	if err != nil {

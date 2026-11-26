@@ -10,147 +10,92 @@
     <aside class="rail">
       <div class="drag"></div>
       <div class="brand">
-        <svg class="mark" viewBox="0 0 32 32" fill="none" aria-hidden="true">
-          <path d="M16 18 C16 14.5 16 12.5 16 9.5" stroke="#188A3C" stroke-width="2.4" stroke-linecap="round"/>
-          <g class="sway">
-            <path d="M16 11 C15 7.8 12.5 5.8 8.8 5.5 C9 9.5 11.5 11.6 16 11 Z" fill="#188A3C"/>
-            <path d="M16 11 C16.3 6.8 19 4.2 23.5 4 C23.3 8.9 20.5 11.4 16 11 Z" fill="#2FC25B"/>
-          </g>
-          <rect x="8.5" y="18" width="15" height="3.2" rx="1.4" fill="#22A447"/>
-          <path d="M10.5 22 H21.5 L20.4 28.4 C20.3 29.1 19.6 29.5 19 29.5 H13 C12.4 29.5 11.7 29.1 11.6 28.4 Z" fill="#20281F"/>
-        </svg>
-        <div class="wordmark">Tiny Systems</div>
+        <span id="brand-mark"></span>
+        <span class="wordmark">Tiny Systems</span>
       </div>
-      <div class="label">Greenhouses</div>
-      <nav id="fleets" class="fleets" aria-label="Fleets"></nav>
-      <button class="add-machine" id="add-machine">+ Add a machine</button>
+      <nav id="gardens" class="gardens" aria-label="Your gardens"></nav>
+      <button class="plant-garden" id="add-machine">
+        <span class="plus" aria-hidden="true">+</span> Plant a new garden
+      </button>
       <div class="rail-foot">
+        <a href="#" id="docs">Help</a>
         <span id="version"></span>
-        <a href="#" id="docs">tinysystems.io</a>
       </div>
     </aside>
 
     <main class="main">
-      <header class="bar">
-        <div class="bar-title">
-          <h1 id="fleet-name">—</h1>
-          <span id="fleet-sub" class="sub"></span>
+      <header class="top">
+        <div class="titles">
+          <h1 id="garden-name">Your garden</h1>
+          <p id="garden-summary" class="summary"></p>
         </div>
-        <div class="bar-actions">
-          <span id="read-at" class="sub"></span>
-          <button id="new-btn" class="btn primary">New session</button>
-        </div>
+        <button id="new-btn" class="btn primary">New helper</button>
       </header>
 
-      <div id="fleet-error" class="error" hidden></div>
-      <div id="health" class="health" hidden></div>
-      <section id="loose" class="loose" hidden></section>
+      <div id="notices" class="notices"></div>
 
-      <div class="split" id="split">
-        <section class="table-wrap">
-          <table class="sessions">
-            <thead>
-              <tr><th class="g" aria-label="State"></th><th>Session</th><th>What it's doing</th><th class="num">CPU</th><th class="num">Mem</th><th class="num">Age</th><th class="acts"></th></tr>
-            </thead>
-            <tbody id="rows"></tbody>
-          </table>
-          <div id="empty" class="empty" hidden>
-            <div id="empty-plant"></div>
-            <p>Nothing planted here yet.</p>
-            <button class="btn" id="empty-new">Start one</button>
-          </div>
-        </section>
+      <section class="greenhouse" aria-label="Helpers">
+        <div id="beds" class="beds"></div>
+        <div id="empty" class="empty" hidden>
+          <div id="empty-art"></div>
+          <h2>Nothing growing here yet</h2>
+          <p>A helper is an AI that works on one task for you, in this garden, until it's done.</p>
+          <button class="btn primary" id="empty-new">Plant your first helper</button>
+        </div>
+      </section>
 
-        <section class="term-pane" id="term-pane" hidden>
+      <section class="watch" id="watch" hidden>
+        <div class="watch-bar">
           <div class="tabs" id="tabs" role="tablist"></div>
-          <div class="term-host" id="term-host"></div>
-        </section>
-      </div>
+          <button class="btn quiet small" id="watch-close">Hide</button>
+        </div>
+        <div class="term-host" id="term-host"></div>
+      </section>
     </main>
+
+    <aside class="sheet" id="sheet" hidden aria-label="Helper"></aside>
   </div>
 
   <dialog id="new-dialog" class="dialog">
     <form id="new-form" method="dialog">
-      <h2>New session</h2>
-      <label>Task <textarea name="task" rows="4" placeholder="Fix the flaky checkout test and open a PR"></textarea></label>
-      <label>Repository <input name="repo" placeholder="https://github.com/acme/app (optional)"></label>
-      <div class="row2">
-        <label>Agent
-          <select name="agent"><option value="">Claude Code</option><option value="codex">Codex</option></select>
-        </label>
-        <label>Model <input name="model" placeholder="default"></label>
-      </div>
-      <label>Image <input name="image" placeholder="default agent image, or golang:1.26"></label>
-      <p class="hint">Leave the task empty to start an idle session and open its terminal.</p>
-      <div class="dialog-actions">
-        <button type="button" class="btn" value="cancel" id="new-cancel">Cancel</button>
-        <button type="submit" class="btn primary" value="ok">Start</button>
+      <h2>New helper</h2>
+      <label class="field">What should it do?
+        <textarea name="task" rows="4" placeholder="Fix the flaky checkout test and open a pull request"></textarea>
+      </label>
+      <label class="field">Link to the code <span class="opt">optional</span>
+        <input name="repo" placeholder="https://github.com/you/your-project">
+      </label>
+      <details class="advanced">
+        <summary>Advanced</summary>
+        <div class="row2">
+          <label class="field">Assistant
+            <select name="agent"><option value="">Claude Code</option><option value="codex">Codex</option></select>
+          </label>
+          <label class="field">Model <input name="model" placeholder="default"></label>
+        </div>
+        <label class="field">Container image <input name="image" placeholder="default"></label>
+      </details>
+      <p class="hint">Leave the task empty to start a helper you talk to directly.</p>
+      <div class="actions">
+        <button type="button" class="btn quiet" id="new-cancel">Cancel</button>
+        <button type="submit" class="btn primary">Plant helper</button>
       </div>
     </form>
   </dialog>
 
-  <dialog id="confirm-dialog" class="dialog">
+  <dialog id="confirm-dialog" class="dialog small">
     <form method="dialog">
       <h2 id="confirm-title"></h2>
-      <p id="confirm-body"></p>
-      <div class="dialog-actions">
-        <button class="btn" value="cancel">Cancel</button>
-        <button class="btn danger" value="ok" id="confirm-ok">Delete</button>
+      <p id="confirm-body" class="body"></p>
+      <div class="actions">
+        <button class="btn quiet" value="cancel">Keep it</button>
+        <button class="btn danger" value="ok">Send home</button>
       </div>
     </form>
   </dialog>
 
-  <dialog id="install-dialog" class="dialog wide">
-    <form id="install-form" method="dialog">
-      <h2>Add a machine</h2>
-      <div class="where" role="radiogroup" aria-label="Where">
-        <label><input type="radio" name="where" value="mac" checked> This Mac</label>
-        <label><input type="radio" name="where" value="remote"> Another computer</label>
-      </div>
-      <p class="hint" data-where="mac">A small Ubuntu VM on this Mac, made with Lima. It runs while the Mac is awake; start it again from the sidebar after a restart. <span id="lima-hint"></span></p>
-      <p class="hint" data-where="remote">A Linux computer you can SSH into. Tiny Systems installs k3s, optionally gVisor, and tiny's runtime, and adds it as a greenhouse. Your SSH agent and keys in ~/.ssh are used.</p>
-      <div class="row2">
-        <label>Name <input name="name" required pattern="[a-z0-9]([-a-z0-9]*[a-z0-9])?" placeholder="garage-box"></label>
-        <label>Namespace <input name="namespace" placeholder="tiny"></label>
-      </div>
-      <div class="row3" data-where="mac">
-        <label>CPUs <input name="cpus" type="number" value="2" min="1" max="16"></label>
-        <label>Memory GB <input name="memoryGB" type="number" value="4" min="2" max="64"></label>
-        <label>Disk GB <input name="diskGB" type="number" value="40" min="20" max="500"></label>
-      </div>
-      <div class="row3" data-where="remote">
-        <label>Address <input name="host" placeholder="192.168.1.20 or box.local"></label>
-        <label>SSH user <input name="user" placeholder="ubuntu"></label>
-        <label>Port <input name="port" type="number" value="22" min="1" max="65535"></label>
-      </div>
-      <label data-where="remote">Key file <input name="keyFile" placeholder="optional, e.g. ~/.ssh/garage"></label>
-      <label data-where="remote">Sudo password <input name="sudoPassword" type="password" autocomplete="off" placeholder="only if sudo asks for one; used once, never stored"></label>
-      <label class="check"><input type="checkbox" name="gvisor" checked> Install gVisor, so sessions can run with --runtime-class gvisor</label>
-      <label>Agent credentials <select name="copyFrom" id="copy-from"></select></label>
-      <div class="dialog-actions">
-        <button type="button" class="btn" id="install-cancel">Cancel</button>
-        <button type="submit" class="btn primary">Install</button>
-      </div>
-    </form>
-  </dialog>
-
-  <dialog id="progress-dialog" class="dialog wide">
-    <div class="progress">
-      <h2 id="progress-title">Setting up</h2>
-      <ol class="steps" id="steps"></ol>
-      <div class="hostkey" id="hostkey" hidden>
-        <p>This computer's SSH key isn't in your known_hosts yet. Check that the fingerprint matches the machine before trusting it:</p>
-        <code id="hostkey-fp"></code>
-        <div class="dialog-actions">
-          <button class="btn" id="hostkey-no">Cancel</button>
-          <button class="btn primary" id="hostkey-yes">Trust and continue</button>
-        </div>
-      </div>
-      <pre class="log" id="install-log"></pre>
-      <div class="dialog-actions">
-        <button class="btn" id="progress-close" disabled>Close</button>
-      </div>
-    </div>
+  <dialog id="wizard" class="dialog wizard">
+    <div class="wz" id="wz"></div>
   </dialog>
 
   <div id="toast" class="toast" role="status" hidden></div>

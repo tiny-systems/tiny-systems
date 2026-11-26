@@ -22,6 +22,10 @@ export function Delete(arg1, arg2) {
   return window['go']['main']['App']['Delete'](arg1, arg2);
 }
 
+export function DemoSelect() {
+  return window['go']['main']['App']['DemoSelect']();
+}
+
 export function Fleet(arg1) {
   return window['go']['main']['App']['Fleet'](arg1);
 }

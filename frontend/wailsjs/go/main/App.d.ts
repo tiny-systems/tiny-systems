@@ -13,6 +13,8 @@ export function CopyCredentials(arg1:main.Target,arg2:main.Target):Promise<void>
 
 export function Delete(arg1:main.Target,arg2:string):Promise<void>;
 
+export function DemoSelect():Promise<string>;
+
 export function Fleet(arg1:main.Target):Promise<main.Fleet>;
 
 export function Health(arg1:main.Target):Promise<fleet.Health>;
