@@ -712,7 +712,11 @@ function grow(req) {
   close.disabled = true;
   const h = el('h2', '', `Creating ${req.name}`);
   h.id = 'grow-title';
-  wizard(h, el('p', 'lead', 'Takes a few minutes. You can keep working.'), list, trust, log, actionsRow(close));
+  const lead = el('p', 'lead', 'Takes a few minutes. You can keep working.');
+  lead.id = 'grow-lead';
+  const acts = actionsRow(close);
+  acts.id = 'grow-actions';
+  wizard(h, lead, list, trust, log, acts);
   const p = req.local
     ? App.InstallLocal({ name: req.name, cpus: req.cpus, memoryGB: req.memoryGB, diskGB: req.diskGB, gvisor: req.gvisor, copyFrom: req.copyFrom })
     : App.Install(req);
@@ -724,9 +728,22 @@ function markStep(s, cls, detail) {
   if (detail != null) s.querySelector('.sd').textContent = detail;
 }
 
-function finish(ok, text) {
+function finish(ok, text, target) {
   $('#grow-close').disabled = false;
   $('#grow-title').textContent = ok ? `${title(wz.req.name)} is ready` : 'Setup stopped';
+  const acts = $('#grow-actions');
+  if (ok) {
+    $('#grow-lead').textContent = 'Everything is set up. Give it its first helper.';
+    $('#grow-close').textContent = 'Later';
+    acts.append(wbtn('Plant a helper', 'primary', async () => {
+      $('#wizard').close();
+      await reloadTargets();
+      openNew(target);
+    }));
+  } else {
+    $('#grow-lead').textContent = 'Nothing is lost: running setup again picks up where it stopped.';
+    acts.append(wbtn('Try again', 'primary', () => grow(wz.req)));
+  }
   if (!ok) {
     const s = document.querySelector('#steps .step.active') || document.querySelector('#steps .step:not(.ok):not(.warn)');
     if (s) markStep(s, 'error', text);
@@ -747,7 +764,7 @@ EventsOn('install:event', (e) => {
   if (e.step === 'done') {
     if (e.level === 'ok') {
       for (const s of document.querySelectorAll('#steps .step')) if (!/ok|warn/.test(s.className)) markStep(s, 'ok');
-      finish(true);
+      finish(true, '', e.data);
       reloadTargets();
     } else finish(false, friendly(e.text));
     return;
