@@ -52,8 +52,12 @@ type Row struct {
 // Asking is a question an agent is waiting on.
 type Asking struct {
 	Name    string   `json:"name"`
+	Session string   `json:"session,omitempty"`
 	Text    string   `json:"text"`
 	Options []string `json:"options,omitempty"`
+	// Idle marks Claude's "waiting for your input" card: the agent finished
+	// a turn and wants a message, rather than a tool asking a decision.
+	Idle bool `json:"idle"`
 }
 
 // Fleet is one read of a target.
@@ -184,7 +188,8 @@ func (a *App) Fleet(t Target) Fleet {
 			Attach: r.Pod != "" && r.Phase == "Running" && !r.Command,
 		}
 		if r.Question != nil {
-			row.Question = &Asking{Name: r.Question.Name, Text: r.Question.Spec.Text, Options: r.Question.Spec.Options}
+			row.Question = &Asking{Name: r.Question.Name, Session: r.Name, Text: r.Question.Spec.Text,
+				Options: r.Question.Spec.Options, Idle: r.Question.Spec.Reason == "notification"}
 			f.NeedsYou++
 		}
 		if r.Phase == "Running" && !r.Paused {
@@ -199,9 +204,20 @@ func (a *App) Fleet(t Target) Fleet {
 	return f
 }
 
-// Answer resolves a question, performing its action as this user.
-func (a *App) Answer(t Target, question, answer string) error {
-	return a.withStore(t, func(ctx context.Context, s *fleet.Client) error { return s.Answer(ctx, question, answer) })
+// Answer resolves a question, performing its action as this user, and
+// delivers the text to the agent's inbox. Answering an idle card clears the
+// session's older idle cards too: they all say the same thing, and leaving
+// them made a sent answer look unsent.
+func (a *App) Answer(t Target, q Asking, answer string) error {
+	return a.withStore(t, func(ctx context.Context, s *fleet.Client) error {
+		if err := s.Answer(ctx, q.Name, answer); err != nil {
+			return err
+		}
+		if q.Idle && q.Session != "" {
+			s.ClearAttention(ctx, q.Session)
+		}
+		return nil
+	})
 }
 
 // Pause scales a session to zero, keeping its workspace.

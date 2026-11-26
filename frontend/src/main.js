@@ -18,6 +18,7 @@ const state = {
   activeTerm: null,
   drafts: {},         // question name -> typed answer, kept across refreshes
   kinds: {},          // session -> last plant kind, to animate changes
+  sent: {},           // question name -> answer just sent
 };
 
 const keyOf = (t) => `${t.context}/${t.namespace}`;
@@ -73,6 +74,13 @@ function selectTarget(i) {
 
 /* The session table */
 
+function sentNote(answer) {
+  const n = document.createElement('div');
+  n.className = 'q';
+  n.textContent = `Sent: “${answer}” — delivered to the agent.`;
+  return n;
+}
+
 function askBlock(q) {
   const box = document.createElement('div');
   box.className = 'ask';
@@ -82,30 +90,43 @@ function askBlock(q) {
   const opts = document.createElement('div');
   opts.className = 'opts';
   const t = cur();
+  // Replace the card at once, so a send never looks like it did nothing.
+  const send = async (answer) => {
+    try {
+      await App.Answer(t, q, answer);
+      state.sent[q.name] = answer;
+      delete state.drafts[q.name];
+      box.replaceChildren(sentNote(answer));
+      box.classList.add('sent');
+      refresh();
+    } catch (e) {
+      toast(String(e), true);
+    }
+  };
   for (const o of q.options || []) {
     const b = document.createElement('button');
     b.className = 'btn small';
     b.textContent = o;
-    b.onclick = () => act(`answered: ${o}`, () => App.Answer(t, q.name, o));
+    b.onclick = () => send(o);
     opts.append(b);
   }
   if (!(q.options || []).length) {
     const input = document.createElement('input');
-    input.placeholder = 'Type an answer';
+    input.placeholder = q.idle ? 'Message the agent' : 'Type an answer';
     input.value = state.drafts[q.name] || '';
     input.oninput = () => { state.drafts[q.name] = input.value; };
-    const send = document.createElement('button');
-    send.className = 'btn small';
-    send.textContent = 'Send';
+    const sendBtn = document.createElement('button');
+    sendBtn.className = 'btn small';
+    sendBtn.textContent = 'Send';
     const go = () => {
       const v = input.value.trim();
       if (!v) return;
-      delete state.drafts[q.name];
-      act('answer sent', () => App.Answer(t, q.name, v));
+      sendBtn.disabled = true;
+      send(v).finally(() => { sendBtn.disabled = false; });
     };
-    send.onclick = go;
+    sendBtn.onclick = go;
     input.onkeydown = (e) => { if (e.key === 'Enter') go(); };
-    opts.append(input, send);
+    opts.append(input, sendBtn);
   }
   box.append(text, opts);
   return box;

@@ -147,6 +147,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
   border-left: 3px solid var(--amber); border-radius: 0 3px 3px 0; user-select: text;
 }
 .ask .q { white-space: pre-wrap; color: var(--ink); margin-bottom: 6px; }
+.ask.sent { background: #DDF0D9; border-left-color: var(--green); }
+.ask.sent .q { margin: 0; color: var(--green-deep); }
 .ask .opts { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
 .ask input { flex: 1; min-width: 180px; padding: 3px 8px; border: 1px solid var(--ink); border-radius: 3px; background: var(--paper); }
 

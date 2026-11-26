@@ -2,8 +2,10 @@ export namespace main {
 	
 	export class Asking {
 	    name: string;
+	    session?: string;
 	    text: string;
 	    options?: string[];
+	    idle: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new Asking(source);
@@ -12,8 +14,10 @@ export namespace main {
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.name = source["name"];
+	        this.session = source["session"];
 	        this.text = source["text"];
 	        this.options = source["options"];
+	        this.idle = source["idle"];
 	    }
 	}
 	export class Row {
