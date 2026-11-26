@@ -222,12 +222,11 @@ type remote struct {
 }
 
 func dialRemote(req InstallRequest, log func(string)) (*remote, error) {
+	// One publickey method holding every key: the SSH client tries each
+	// method name only once, so a second publickey method (agent keys,
+	// then files) would never be offered. The named key goes first, before
+	// the server's MaxAuthTries runs out on unrelated agent keys.
 	var auths []ssh.AuthMethod
-	if sock := os.Getenv("SSH_AUTH_SOCK"); sock != "" {
-		if conn, err := net.Dial("unix", sock); err == nil {
-			auths = append(auths, ssh.PublicKeysCallback(agent.NewClient(conn).Signers))
-		}
-	}
 	var signers []ssh.Signer
 	home, _ := os.UserHomeDir()
 	keyFiles := []string{req.KeyFile, filepath.Join(home, ".ssh", "id_ed25519"), filepath.Join(home, ".ssh", "id_ecdsa"), filepath.Join(home, ".ssh", "id_rsa")}
@@ -245,8 +244,23 @@ func dialRemote(req InstallRequest, log func(string)) (*remote, error) {
 			return nil, fmt.Errorf("key %s can't be used directly (%v); add it to your SSH agent with ssh-add", f, err)
 		}
 	}
-	if len(signers) > 0 {
-		auths = append(auths, ssh.PublicKeys(signers...))
+	var agentKeys agent.ExtendedAgent
+	if sock := os.Getenv("SSH_AUTH_SOCK"); sock != "" {
+		if conn, err := net.Dial("unix", sock); err == nil {
+			defer conn.Close()
+			agentKeys = agent.NewClient(conn)
+		}
+	}
+	if len(signers) > 0 || agentKeys != nil {
+		auths = append(auths, ssh.PublicKeysCallback(func() ([]ssh.Signer, error) {
+			all := append([]ssh.Signer(nil), signers...)
+			if agentKeys != nil {
+				if more, err := agentKeys.Signers(); err == nil {
+					all = append(all, more...)
+				}
+			}
+			return all, nil
+		}))
 	}
 	if req.Password != "" {
 		auths = append(auths, ssh.Password(req.Password))

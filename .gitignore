@@ -5,3 +5,4 @@ frontend/dist/*
 .DS_Store
 *.p12
 *.cer
+/tiny-systems
