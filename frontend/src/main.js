@@ -145,10 +145,10 @@ function repoLabel(task) {
   return m ? m[1].replace(/\.git$/, '') : '';
 }
 
-function select(key, name) {
+function select(key, name, mode = 'chat') {
   if (state.term && (state.term.key !== key || state.term.name !== name)) closeTerminal();
   state.sel = { key, name };
-  state.mode = 'chat';
+  state.mode = mode;
   state.convoFor = '';
   renderList();
   loadConvo().then(renderPane);
@@ -403,12 +403,24 @@ async function openTerminal(r, wrap) {
   const entry = { id: null, key: r.key, name: r.name, term, fit, host, closed: false };
   state.term = entry;
   term.write(`\x1b[2mconnecting to ${helperName(r.name)}…\x1b[0m\r\n`);
-  try {
-    entry.id = await App.OpenTerminal(targetOf(r.key), r.name, term.cols, term.rows);
-  } catch (e) {
-    term.write(`\r\n\x1b[31m${friendly(e)}\x1b[0m\r\n`);
-    entry.closed = true;
-    return;
+  // A helper that was just planted takes a minute to start: keep trying
+  // while it's still this terminal, up to about three minutes.
+  for (let tries = 0; ; tries++) {
+    try {
+      entry.id = await App.OpenTerminal(targetOf(r.key), r.name, term.cols, term.rows);
+      if (state.term !== entry) { App.CloseTerminal(entry.id); return; } // left while connecting
+      break;
+    } catch (e) {
+      if (state.term !== entry) return;
+      if (tries >= 60) {
+        term.write(`\r\n\x1b[31m${friendly(e)}\x1b[0m\r\n`);
+        entry.closed = true;
+        return;
+      }
+      if (tries === 0) term.write(`\x1b[2mwaiting for ${helperName(r.name)} to start…\x1b[0m\r\n`);
+      await new Promise((ok) => setTimeout(ok, 3000));
+      if (state.term !== entry) return;
+    }
   }
   EventsOn(`term:${entry.id}`, (b64) => term.write(fromB64(b64)));
   EventsOn(`term-closed:${entry.id}`, (reason) => {
@@ -581,11 +593,13 @@ $('#new-form').onsubmit = async (e) => {
   $('#new-dialog').close();
   const t = targetOf(d.garden);
   try {
-    const name = await App.NewSession(t, { task: d.task, repo: d.repo, agent: d.agent, model: d.model, image: d.image });
+    const task = (d.task || '').trim();
+    const name = await App.NewSession(t, { task, repo: d.repo, agent: d.agent, model: d.model, image: d.image });
     toast(`${helperName(name)} started`);
     setView('helpers');
     await refresh();
-    select(keyOf(t), name);
+    // No task: a blank session, so open straight into its terminal.
+    select(keyOf(t), name, task ? 'chat' : 'terminal');
   } catch (err) { toast(friendly(err), true); }
 };
 
