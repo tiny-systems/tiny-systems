@@ -521,11 +521,10 @@ func mergeKubeconfig(k3s []byte, name, host string) (path, backup string, err er
 	if err != nil {
 		return "", "", fmt.Errorf("parse k3s kubeconfig: %w", err)
 	}
-	cluster, user := src.Clusters["default"], src.AuthInfos["default"]
-	if cluster == nil || user == nil {
-		return "", "", errors.New("unexpected k3s kubeconfig: no default cluster or user")
+	cluster, user, err := safeK3sEntries(src, host)
+	if err != nil {
+		return "", "", err
 	}
-	cluster.Server = rewriteServer(cluster.Server, host)
 
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -557,9 +556,37 @@ func mergeKubeconfig(k3s []byte, name, host string) (path, backup string, err er
 	return path, backup, clientcmd.WriteToFile(*dst, path)
 }
 
-func rewriteServer(server, host string) string {
-	u := strings.Replace(server, "127.0.0.1", host, 1)
-	return strings.Replace(u, "localhost", host, 1)
+// safeK3sEntries builds the cluster and user entries from scratch with
+// only what a k3s kubeconfig legitimately holds: the CA, and a client
+// certificate and key (or a token). The file comes from the remote
+// machine, and a kubeconfig can name a program to run for credentials
+// (exec, auth-provider), a proxy, or skip TLS checks; copying it as is
+// would let a compromised machine run code on this one. The server is
+// set here, never taken from the file.
+func safeK3sEntries(src *clientcmdapi.Config, host string) (*clientcmdapi.Cluster, *clientcmdapi.AuthInfo, error) {
+	c, u := src.Clusters["default"], src.AuthInfos["default"]
+	if c == nil || u == nil {
+		return nil, nil, errors.New("unexpected k3s kubeconfig: no default cluster or user")
+	}
+	if u.Exec != nil || u.AuthProvider != nil {
+		return nil, nil, errors.New("the machine's kubeconfig asks to run a credential program; refusing to copy it")
+	}
+	if len(c.CertificateAuthorityData) == 0 {
+		return nil, nil, errors.New("the machine's kubeconfig has no CA certificate; refusing to connect without verifying TLS")
+	}
+	if (len(u.ClientCertificateData) == 0 || len(u.ClientKeyData) == 0) && u.Token == "" {
+		return nil, nil, errors.New("the machine's kubeconfig has no client certificate or token")
+	}
+	cluster := &clientcmdapi.Cluster{
+		Server:                   "https://" + net.JoinHostPort(host, "6443"),
+		CertificateAuthorityData: c.CertificateAuthorityData,
+	}
+	user := &clientcmdapi.AuthInfo{
+		ClientCertificateData: u.ClientCertificateData,
+		ClientKeyData:         u.ClientKeyData,
+		Token:                 u.Token,
+	}
+	return cluster, user, nil
 }
 
 // saveProfile records the fleet in the tiny CLI's config, so `tiny -p
