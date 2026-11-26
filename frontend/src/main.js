@@ -595,12 +595,22 @@ const wz = { req: null };
 const wizard = (...c) => { $('#wz').replaceChildren(...c); if (!$('#wizard').open) $('#wizard').showModal(); };
 const actionsRow = (...b) => { const a = el('div', 'actions'); a.append(...b); return a; };
 const wbtn = (label, cls, fn) => { const b = el('button', `btn ${cls}`, label); b.type = 'button'; b.onclick = fn; return b; };
+// slug turns whatever name was typed ("Home Garden") into the form
+// computers and Kubernetes accept ("home-garden").
+function slug(name) {
+  return name.trim().toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 40) || 'garden';
+}
+
 function field(label, name, attrs = {}, opt) {
   const l = el('label', 'field');
   l.append(label);
   if (opt) l.append(' ', el('span', 'opt', opt));
   const i = el('input');
   i.name = name;
+  // No macOS autocapitalize or autocorrect on names, hosts and paths.
+  i.setAttribute('autocapitalize', 'off');
+  i.setAttribute('autocorrect', 'off');
+  i.spellcheck = false;
   Object.assign(i, attrs);
   l.append(i);
   return l;
@@ -623,7 +633,7 @@ function stepWhere() {
 function stepDetails(where) {
   const form = el('form');
   form.style.cssText = 'padding:0;display:flex;flex-direction:column;gap:13px';
-  form.append(field('Name', 'name', { required: true, placeholder: where === 'mac' ? 'my-mac' : 'office', pattern: '[a-z0-9]([-a-z0-9]*[a-z0-9])?', title: 'lowercase letters, numbers and dashes' }));
+  form.append(field('Name', 'name', { required: true, placeholder: where === 'mac' ? 'My Mac' : 'Office' }));
   if (where === 'remote') {
     const r = el('div', 'row2');
     r.append(field('Address', 'host', { required: true, placeholder: '192.168.1.20' }), field('SSH user', 'user', { required: true, placeholder: 'ubuntu' }));
@@ -666,9 +676,9 @@ function stepDetails(where) {
     const copyFrom = d.copyFrom === '' ? null : state.targets[Number(d.copyFrom)];
     if (where === 'mac') {
       if (!(await App.Local()).lima) { toast('Install Lima first: brew install lima', true); return; }
-      grow({ local: true, name: d.name.trim(), gvisor: !!d.gvisor, cpus: Number(d.cpus), memoryGB: Number(d.memoryGB), diskGB: Number(d.diskGB), copyFrom });
+      grow({ local: true, name: slug(d.name), gvisor: !!d.gvisor, cpus: Number(d.cpus), memoryGB: Number(d.memoryGB), diskGB: Number(d.diskGB), copyFrom });
     } else {
-      grow({ name: d.name.trim(), host: d.host.trim(), user: d.user.trim(), port: Number(d.port) || 22, keyFile: (d.keyFile || '').trim(), sudoPassword: d.sudoPassword || '',
+      grow({ name: slug(d.name), host: d.host.trim(), user: d.user.trim(), port: Number(d.port) || 22, keyFile: (d.keyFile || '').trim(), sudoPassword: d.sudoPassword || '',
         namespace: (d.namespace || '').trim() || 'tiny', gvisor: !!d.gvisor, trustFingerprint: '', copyFrom });
     }
   };
