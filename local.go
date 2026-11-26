@@ -214,7 +214,7 @@ func freeAPIPort() int {
 func (a *App) Health(t Target) (fleet.Health, error) {
 	var h fleet.Health
 	if isDemo(t) {
-		return fleet.Health{SignIn: fleet.SignInStored}, nil
+		return fleet.Health{SignIn: fleet.SignInStored, Sandbox: "gvisor", SandboxAvailable: true}, nil
 	}
 	err := a.withStore(t, func(ctx context.Context, s *fleet.Client) error {
 		var err error
@@ -244,4 +244,18 @@ func (a *App) Notify(title, body string) {
 display notification (item 2 of argv) with title (item 1 of argv)
 end run`
 	_ = exec.Command("osascript", "-e", script, title, body).Start()
+}
+
+// SetSandbox turns the garden's sandbox on (every new helper runs under
+// gVisor) or off. Helpers already running keep the runtime they have.
+func (a *App) SetSandbox(t Target, on bool) error {
+	if isDemo(t) {
+		return nil
+	}
+	return a.withStore(t, func(ctx context.Context, c *fleet.Client) error {
+		if on {
+			return c.SandboxOn(ctx, "gvisor")
+		}
+		return c.SandboxOff(ctx)
+	})
 }

@@ -41,6 +41,8 @@ export function Resume(arg1:main.Target,arg2:string):Promise<void>;
 
 export function SendMessage(arg1:main.Target,arg2:string,arg3:string):Promise<void>;
 
+export function SetSandbox(arg1:main.Target,arg2:boolean):Promise<void>;
+
 export function StartVM(arg1:string):Promise<void>;
 
 export function StopVM(arg1:string):Promise<void>;

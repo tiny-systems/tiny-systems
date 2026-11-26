@@ -222,6 +222,8 @@ h1, h2, h3 { margin: 0; font-weight: 600; letter-spacing: -0.01em; }
 .disk i { display: block; height: 100%; background: var(--leaf-2); }
 .disk.low i { background: var(--amber); }
 .disk.full i { background: var(--red); }
+.gv-row .cell .sbx { display: block; margin-top: 4px; }
+.gv-row .cell .sbx.on { color: var(--leaf); }
 .gv-actions { display: flex; gap: 6px; justify-content: flex-end; }
 .gv-note { grid-column: 2 / -1; color: var(--amber); font-size: 12px; display: flex; gap: 8px; align-items: center; }
 .gv-note.bad { color: var(--red); }

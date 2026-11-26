@@ -3,7 +3,7 @@ module github.com/tiny-systems/tiny-systems
 go 1.26.0
 
 require (
-	github.com/tiny-systems/tiny v0.17.1-0.20261126154659-2beca6d16da9
+	github.com/tiny-systems/tiny v0.17.1-0.20261126210944-088565a38027
 	github.com/wailsapp/wails/v2 v2.11.0
 	golang.org/x/crypto v0.59.0
 	k8s.io/client-go v0.36.0

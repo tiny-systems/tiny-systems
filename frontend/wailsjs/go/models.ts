@@ -27,6 +27,8 @@ export namespace fleet {
 	    runtimeMissing?: string[];
 	    signIn: string;
 	    codex: boolean;
+	    sandbox?: string;
+	    sandboxAvailable: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new Health(source);
@@ -38,6 +40,8 @@ export namespace fleet {
 	        this.runtimeMissing = source["runtimeMissing"];
 	        this.signIn = source["signIn"];
 	        this.codex = source["codex"];
+	        this.sandbox = source["sandbox"];
+	        this.sandboxAvailable = source["sandboxAvailable"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

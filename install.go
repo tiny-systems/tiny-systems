@@ -192,6 +192,17 @@ func (a *App) install(ctx context.Context, req InstallRequest, emit func(Install
 	say("runtime", "ok", "runtime installed, egress allow-list on")
 
 	t := Target{Name: req.Name, Context: req.Name, Namespace: req.Namespace}
+	if req.GVisor {
+		// Installing gVisor protects nothing until sessions run under it.
+		c, err := fleet.Connect(t.Context, t.Namespace)
+		if err == nil {
+			err = c.SandboxOn(rctx, "gvisor")
+		}
+		if err != nil {
+			return nil, fmt.Errorf("turn the sandbox on: %w", err)
+		}
+		say("runtime", "ok", "sandbox on: every helper runs under gVisor")
+	}
 	if err := saveProfile(t); err != nil {
 		say("runtime", "warn", "couldn't save the tiny profile (%v); the fleet still works here", err)
 	}

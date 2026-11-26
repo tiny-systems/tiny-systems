@@ -460,6 +460,7 @@ function gardenRow(g, f, h) {
   const status = el('div', 'cell');
   const pill = el('span', 'pill' + (asleep ? ' off' : f?.needsYou ? ' warn' : ''), asleep ? (g.local ? 'Asleep' : 'Unreachable') : 'Awake');
   status.append(pill);
+  if (!asleep && h) status.append(el('span', h.sandbox ? 'sbx on' : 'sbx', h.sandbox ? 'Sandboxed' : 'Not sandboxed'));
   const helpers = el('div', 'cell');
   helpers.append(el('b', '', asleep ? '—' : `${(f?.rows || []).length} helper${(f?.rows || []).length === 1 ? '' : 's'}`),
     el('span', '', f?.needsYou ? `${f.needsYou} need${f.needsYou === 1 ? 's' : ''} you` : ''));
@@ -493,6 +494,7 @@ function gardenRow(g, f, h) {
   if (asleep) h = null;
   if (n?.diskPressure) notes.push(['bad', 'Out of disk: new helpers can’t start until space is freed on this computer.']);
   if (h && (h.runtimeMissing || []).length) notes.push(['', 'An update is available for this garden.', 'Update', async () => { await App.UpgradeRuntime(t); toast('Updated'); state.health = {}; renderGardens(); }]);
+  if (h && !h.sandbox && h.sandboxAvailable) notes.push(['', 'Helpers here run without the sandbox, though it’s installed.', 'Turn on', async () => { await App.SetSandbox(t, true); toast('Sandbox on: new helpers run sealed off'); state.health = {}; renderGardens(); }]);
   if (h && h.signIn === 'none') notes.push(['', 'Helpers can’t sign in here yet.', 'copy']);
   for (const [cls, text, act, fn] of notes) {
     const note = el('div', 'gv-note' + (cls ? ` ${cls}` : ''));
