@@ -14,6 +14,10 @@ export function Contexts() {
   return window['go']['main']['App']['Contexts']();
 }
 
+export function Conversation(arg1, arg2) {
+  return window['go']['main']['App']['Conversation'](arg1, arg2);
+}
+
 export function CopyCredentials(arg1, arg2) {
   return window['go']['main']['App']['CopyCredentials'](arg1, arg2);
 }
@@ -28,6 +32,10 @@ export function DemoSelect() {
 
 export function Fleet(arg1) {
   return window['go']['main']['App']['Fleet'](arg1);
+}
+
+export function Gardens() {
+  return window['go']['main']['App']['Gardens']();
 }
 
 export function Health(arg1) {
@@ -64,6 +72,10 @@ export function Pause(arg1, arg2) {
 
 export function Resume(arg1, arg2) {
   return window['go']['main']['App']['Resume'](arg1, arg2);
+}
+
+export function SendMessage(arg1, arg2, arg3) {
+  return window['go']['main']['App']['SendMessage'](arg1, arg2, arg3);
 }
 
 export function StartVM(arg1) {

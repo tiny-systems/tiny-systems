@@ -6,63 +6,70 @@
   <title>Tiny Systems</title>
 </head>
 <body>
-  <div class="app">
-    <aside class="rail">
-      <div class="drag"></div>
-      <div class="brand">
-        <span id="brand-mark"></span>
-        <span class="wordmark">Tiny Systems</span>
-      </div>
-      <nav id="gardens" class="gardens" aria-label="Your gardens"></nav>
-      <button class="plant-garden" id="add-machine">
-        <span class="plus" aria-hidden="true">+</span> Plant a new garden
+  <div class="app" id="app">
+    <nav class="rail" aria-label="Sections">
+      <div class="rail-drag"></div>
+      <button class="rail-btn" data-view="helpers" aria-label="Helpers" title="Helpers">
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M4 6.5h16M4 12h16M4 17.5h10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        <span class="rail-badge" id="rail-badge" hidden></span>
       </button>
-      <div class="rail-foot">
-        <a href="#" id="docs">Help</a>
-        <span id="version"></span>
+      <button class="rail-btn" data-view="gardens" aria-label="Gardens" title="Gardens">
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path d="M12 20V10.5M12 13.5C8.5 13.6 6 11.4 5.6 7.6c3.7.1 6.2 2.2 6.4 5.9ZM12 11c.2-3.8 2.8-6.4 6.6-6.6-.2 4-2.8 6.4-6.6 6.6Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"/></svg>
+      </button>
+      <div class="rail-fill"></div>
+      <button class="rail-btn" id="help" aria-label="Help" title="Help">
+        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M9.6 9.6a2.5 2.5 0 1 1 3.4 2.3c-.6.3-1 .8-1 1.5v.4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><circle cx="12" cy="16.8" r="1" fill="currentColor"/></svg>
+      </button>
+      <span class="rail-mark" id="rail-mark" title=""></span>
+    </nav>
+
+    <!-- Helpers: list and conversation -->
+    <section class="list" id="list">
+      <div class="list-drag"></div>
+      <div class="list-head">
+        <label class="search">
+          <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="m15 15 4.5 4.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          <input id="search" placeholder="Search" autocomplete="off" spellcheck="false">
+        </label>
+        <button class="icon-btn round" id="new-btn" aria-label="New helper" title="New helper">
+          <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </button>
       </div>
-    </aside>
+      <div class="filters" role="tablist" id="filters">
+        <button role="tab" data-filter="all" aria-selected="true">All</button>
+        <button role="tab" data-filter="ask" aria-selected="false">Needs you <span class="count" id="count-ask"></span></button>
+        <button role="tab" data-filter="grow" aria-selected="false">Working</button>
+      </div>
+      <div class="rows" id="rows"></div>
+    </section>
 
-    <main class="main">
-      <header class="top">
-        <div class="titles">
-          <h1 id="garden-name">Your garden</h1>
-          <p id="garden-summary" class="summary"></p>
+    <section class="pane" id="pane">
+      <div class="pane-drag"></div>
+      <div id="pane-body" class="pane-body"></div>
+    </section>
+
+    <!-- Gardens -->
+    <section class="gardens-view" id="gardens-view" hidden>
+      <div class="pane-drag"></div>
+      <header class="gv-head">
+        <div>
+          <h1>Gardens</h1>
+          <p>Where your helpers live. Each garden is a computer they work on.</p>
         </div>
-        <button id="new-btn" class="btn primary">New helper</button>
+        <button class="btn primary" id="add-garden">Add garden</button>
       </header>
-
-      <div id="notices" class="notices"></div>
-
-      <section class="greenhouse" aria-label="Helpers">
-        <div id="beds" class="beds"></div>
-        <div id="empty" class="empty" hidden>
-          <div id="empty-art"></div>
-          <h2>Nothing growing here yet</h2>
-          <p>A helper is an AI that works on one task for you, in this garden, until it's done.</p>
-          <button class="btn primary" id="empty-new">Plant your first helper</button>
-        </div>
-      </section>
-
-      <section class="watch" id="watch" hidden>
-        <div class="watch-bar">
-          <div class="tabs" id="tabs" role="tablist"></div>
-          <button class="btn quiet small" id="watch-close">Hide</button>
-        </div>
-        <div class="term-host" id="term-host"></div>
-      </section>
-    </main>
-
-    <aside class="sheet" id="sheet" hidden aria-label="Helper"></aside>
+      <div class="gv-rows" id="gv-rows"></div>
+    </section>
   </div>
 
   <dialog id="new-dialog" class="dialog">
     <form id="new-form" method="dialog">
       <h2>New helper</h2>
+      <label class="field">Garden <select name="garden" id="new-garden"></select></label>
       <label class="field">What should it do?
         <textarea name="task" rows="4" placeholder="Fix the flaky checkout test and open a pull request"></textarea>
       </label>
-      <label class="field">Link to the code <span class="opt">optional</span>
+      <label class="field">Project <span class="opt">optional</span>
         <input name="repo" placeholder="https://github.com/you/your-project">
       </label>
       <details class="advanced">
@@ -75,10 +82,9 @@
         </div>
         <label class="field">Container image <input name="image" placeholder="default"></label>
       </details>
-      <p class="hint">Leave the task empty to start a helper you talk to directly.</p>
       <div class="actions">
-        <button type="button" class="btn quiet" id="new-cancel">Cancel</button>
-        <button type="submit" class="btn primary">Plant helper</button>
+        <button type="button" class="btn ghost" id="new-cancel">Cancel</button>
+        <button type="submit" class="btn primary">Start helper</button>
       </div>
     </form>
   </dialog>
@@ -88,16 +94,14 @@
       <h2 id="confirm-title"></h2>
       <p id="confirm-body" class="body"></p>
       <div class="actions">
-        <button class="btn quiet" value="cancel">Keep it</button>
-        <button class="btn danger" value="ok">Send home</button>
+        <button class="btn ghost" value="cancel">Keep</button>
+        <button class="btn danger" value="ok" id="confirm-ok">Remove</button>
       </div>
     </form>
   </dialog>
 
-  <dialog id="wizard" class="dialog wizard">
-    <div class="wz" id="wz"></div>
-  </dialog>
-
+  <dialog id="wizard" class="dialog wizard"><div class="wz" id="wz"></div></dialog>
+  <div class="menu" id="menu" hidden></div>
   <div id="toast" class="toast" role="status" hidden></div>
   <script type="module" src="/src/main.js"></script>
 </body>

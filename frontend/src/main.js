@@ -3,9 +3,9 @@ import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import * as App from '../wailsjs/go/main/App.js';
 import { EventsOn, EventsOff, BrowserOpenURL } from '../wailsjs/runtime/runtime.js';
-import { plant, plantKind, STATE, helperName, nameHelpers } from './plant.js';
+import { glyph, mark, plantKind, STATE, helperName, nameHelpers } from './plant.js';
 
-const $ = (sel) => document.querySelector(sel);
+const $ = (s) => document.querySelector(s);
 const el = (tag, cls, text) => {
   const e = document.createElement(tag);
   if (cls) e.className = cls;
@@ -15,23 +15,24 @@ const el = (tag, cls, text) => {
 const REFRESH_MS = 2500;
 
 const state = {
+  view: 'helpers',
   targets: [],
-  current: null,
-  summaries: {},   // garden key -> {needsYou, running, error, total}
-  fleet: null,
-  selected: null,  // helper (session) name shown in the sheet
-  kinds: {},       // helper -> last plant kind, to animate changes
-  sent: {},        // question name -> what was sent
-  drafts: {},      // question name -> typed reply
-  terms: [],
-  activeTerm: null,
+  fleets: {},          // garden key -> Fleet
+  filter: 'all',
+  query: '',
+  sel: null,           // {key, name}
+  mode: 'chat',        // chat | terminal
+  convo: [],           // messages of the selected helper
+  convoFor: '',
+  term: null,          // {id, key, name, term, fit, host}
+  health: {},          // garden key -> {h, at}
+  gardens: [],
 };
 
 const keyOf = (t) => `${t.context}/${t.namespace}`;
-const plantEls = new Map(); // helper -> its element in the bed, kept across refreshes
-const cur = () => state.targets[state.current];
+const targetOf = (key) => state.targets.find((t) => keyOf(t) === key);
 const title = (s) => s.charAt(0).toUpperCase() + s.slice(1);
-const gardenName = (t) => title(t.name);
+const gardenName = (t) => (t ? title(t.name) : '');
 
 function toast(text, bad = false) {
   const t = $('#toast');
@@ -39,523 +40,559 @@ function toast(text, bad = false) {
   t.classList.toggle('bad', bad);
   t.hidden = false;
   clearTimeout(toast.t);
-  toast.t = setTimeout(() => { t.hidden = true; }, bad ? 6000 : 2600);
+  toast.t = setTimeout(() => { t.hidden = true; }, bad ? 6000 : 2400);
 }
 
-async function act(done, fn) {
-  try {
-    await fn();
-    if (done) toast(done);
-    refresh();
-  } catch (e) {
-    toast(friendlyError(e), true);
-  }
-}
-
-// Errors from the cluster are written for operators; say what it means.
-function friendlyError(e) {
-  const s = String(e);
-  if (/connection refused|no such host|i\/o timeout|dial tcp/i.test(s)) return 'This garden can’t be reached right now.';
+function friendly(e) {
+  const s = String(e).replace(/^Error: /, '');
+  if (/connection refused|no such host|i\/o timeout|dial tcp/i.test(s)) return 'That garden can’t be reached right now.';
   if (/forbidden/i.test(s)) return 'You don’t have permission to do that in this garden.';
-  return s.replace(/^Error: /, '');
+  return s;
 }
 
-/* Gardens in the sidebar */
-
-function renderRail() {
-  $('#gardens').replaceChildren(...state.targets.map((t, i) => {
-    const s = state.summaries[keyOf(t)] || {};
-    const b = el('button', 'garden');
-    b.setAttribute('aria-current', String(i === state.current));
-    const dot = el('span', 'dot');
-    let label = '';
-    let cls = '';
-    if (s.error) { label = 'asleep'; cls = 'asleep'; }
-    else if (s.needsYou) { label = `${s.needsYou} need${s.needsYou === 1 ? 's' : ''} you`; cls = 'needs'; }
-    else if (s.total != null) { label = s.total ? `${s.total} helper${s.total === 1 ? '' : 's'}` : 'empty'; }
-    if (cls) dot.classList.add(cls);
-    b.append(dot, el('span', 'gname', gardenName(t)), el('span', `gstate ${cls}`, label));
-    b.onclick = () => selectTarget(i);
-    return b;
-  }));
+async function run(done, fn) {
+  try { await fn(); if (done) toast(done); refresh(); } catch (e) { toast(friendly(e), true); }
 }
 
-function selectTarget(i) {
-  plantEls.clear();
-  $('#beds').replaceChildren();
-  state.current = i;
-  state.selected = null;
-  state.fleet = null;
-  renderRail();
-  renderGarden();
-  renderSheet();
-  refresh();
+function ago(iso) {
+  const s = (Date.now() - new Date(iso).getTime()) / 1000;
+  if (!isFinite(s)) return '';
+  if (s < 60) return 'now';
+  if (s < 3600) return `${Math.floor(s / 60)}m`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h`;
+  return `${Math.floor(s / 86400)}d`;
+}
+function clock(iso) {
+  const d = new Date(iso);
+  return isNaN(d) ? '' : d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }
 
-/* The garden bed */
+/* Data */
 
-function summaryLine(f) {
-  if (!f) return document.createTextNode('');
-  if (f.error) return document.createTextNode('This garden is asleep or out of reach.');
-  const rows = f.rows || [];
-  if (!rows.length) return document.createTextNode('No helpers yet.');
-  const working = rows.filter((r) => plantKind(r) === 'grow').length;
-  const p = document.createDocumentFragment();
-  const parts = [];
-  if (working) parts.push(`${working} working`);
-  const resting = rows.filter((r) => plantKind(r) === 'rest').length;
-  if (resting) parts.push(`${resting} resting`);
-  const finished = rows.filter((r) => plantKind(r) === 'done').length;
-  if (finished) parts.push(`${finished} finished`);
-  const starting = rows.filter((r) => plantKind(r) === 'seed').length;
-  if (starting) parts.push(`${starting} getting ready`);
-  const stuck = rows.filter((r) => plantKind(r) === 'fail').length;
-  if (stuck) parts.push(`${stuck} stuck`);
-  p.append(`${rows.length} helper${rows.length === 1 ? '' : 's'}${parts.length ? ': ' + parts.join(', ') : ''}.`);
-  if (f.needsYou) {
-    p.append(' ');
-    p.append(el('b', '', `${f.needsYou} need${f.needsYou === 1 ? 's' : ''} you.`));
+function allRows() {
+  const out = [];
+  for (const t of state.targets) {
+    const f = state.fleets[keyOf(t)];
+    for (const r of (f && f.rows) || []) out.push({ ...r, key: keyOf(t), kind: plantKind(r) });
   }
-  return p;
+  return out;
 }
-
-function renderGarden() {
-  const t = cur();
-  $('#garden-name').textContent = t ? gardenName(t) : 'No gardens yet';
-  const f = state.fleet;
-  $('#garden-summary').replaceChildren(summaryLine(f));
-  const rows = (f && !f.error && f.rows) || [];
-  const empty = !!(f && !f.error && rows.length === 0);
-  $('#empty').hidden = !empty;
-  $('#beds').hidden = empty || !!(f && f.error);
-  if (empty && !$('#empty-art').firstChild) $('#empty-art').append(plant('seed', 120, { pot: true }));
-
-  nameHelpers(rows.map((r) => r.name));
-  // Plants are kept between refreshes and only redrawn when their state
-  // changes, so animations run on instead of restarting every few seconds.
-  const plants = rows.map((r) => {
-    const kind = plantKind(r);
-    let b = plantEls.get(r.name);
-    if (!b || b.dataset.kind !== kind) {
-      const changed = !!b;
-      b = el('button', 'helper');
-      b.dataset.kind = kind;
-      const art = el('div', 'art');
-      const svg = plant(kind, 148);
-      if (changed) svg.classList.add('fresh');
-      art.append(svg);
-      if (kind === 'ask') b.append(el('span', 'bubble', 'Needs you'));
-      b.append(art, el('span', 'stake', helperName(r.name)));
-      b.onclick = () => { state.selected = r.name; renderGarden(); renderSheet(); };
-      plantEls.set(r.name, b);
-    }
-    b.setAttribute('aria-pressed', String(r.name === state.selected));
-    b.setAttribute('aria-label', `${helperName(r.name)}: ${STATE[kind]}`);
-    return b;
-  });
-  for (const name of [...plantEls.keys()]) if (!rows.some((r) => r.name === name)) plantEls.delete(name);
-  // One planter per row: plants never float above a row without soil.
-  const width = $('.greenhouse').clientWidth - 80;
-  const perRow = Math.max(1, Math.floor((Math.min(width, 1100) - 68 + 18) / (150 + 18)));
-  const box = $('#beds');
-  const rowsNeeded = Math.ceil(plants.length / perRow);
-  while (box.children.length > rowsNeeded) box.lastElementChild.remove();
-  while (box.children.length < rowsNeeded) {
-    const wrap = el('div', 'bed-wrap');
-    wrap.append(el('div', 'bed'), el('div', 'soil'));
-    box.append(wrap);
-  }
-  // Move plants into place without detaching ones already there.
-  [...box.children].forEach((wrap, i) => {
-    const bed = wrap.firstElementChild;
-    const want = plants.slice(i * perRow, (i + 1) * perRow);
-    want.forEach((p, j) => { if (bed.children[j] !== p) bed.insertBefore(p, bed.children[j] || null); });
-    while (bed.children.length > want.length) bed.lastElementChild.remove();
-  });
-}
-
-/* The helper sheet */
 
 function selectedRow() {
-  return (state.fleet?.rows || []).find((r) => r.name === state.selected);
+  if (!state.sel) return null;
+  const f = state.fleets[state.sel.key];
+  const r = (f?.rows || []).find((x) => x.name === state.sel.name);
+  return r ? { ...r, key: state.sel.key, kind: plantKind(r) } : null;
 }
 
-function renderSheet() {
-  const sheet = $('#sheet');
+async function refresh() {
+  await Promise.all(state.targets.map(async (t) => { state.fleets[keyOf(t)] = await App.Fleet(t); }));
+  nameHelpers(allRows().map((r) => r.name));
+  renderList();
+  renderBadge();
+  notify();
+  if (state.view === 'helpers') {
+    await loadConvo();
+    renderPane();
+  } else {
+    renderGardens();
+  }
+}
+
+/* Helper list */
+
+function renderList() {
+  const rows = allRows();
+  const asks = rows.filter((r) => r.kind === 'ask').length;
+  $('#count-ask').textContent = asks ? String(asks) : '';
+  const q = state.query.toLowerCase();
+  const show = rows.filter((r) => (state.filter === 'all' || r.kind === state.filter) &&
+    (!q || `${helperName(r.name)} ${r.title} ${r.task} ${r.activity}`.toLowerCase().includes(q)));
+  const box = $('#rows');
+  const out = [];
+  for (const t of state.targets) {
+    const key = keyOf(t);
+    const f = state.fleets[key];
+    const mine = show.filter((r) => r.key === key);
+    if (!mine.length && (state.filter !== 'all' || q)) continue;
+    const g = el('div', 'group');
+    const dot = el('span', 'gdot' + (f?.error ? ' asleep' : ''));
+    g.append(dot, el('span', 'gn', gardenName(t)), el('span', '', f?.error ? 'asleep' : String((f?.rows || []).length)));
+    out.push(g);
+    for (const r of mine) out.push(rowEl(r));
+  }
+  if (!out.length) out.push(el('div', 'list-empty', q ? 'No helpers match.' : 'No helpers yet. Press + to start one.'));
+  box.replaceChildren(...out);
+}
+
+function rowEl(r) {
+  const b = el('button', 'row');
+  b.setAttribute('aria-current', String(state.sel?.key === r.key && state.sel?.name === r.name));
+  const name = el('div', 'rname');
+  name.append(helperName(r.name));
+  const chipText = repoLabel(r.task) || (r.command ? 'command' : '');
+  if (chipText) name.append(el('span', 'chip', chipText));
+  const preview = r.question ? (r.question.idle ? 'Waiting for you' : r.question.text)
+    : r.kind === 'fail' ? (r.message || 'Stuck') : (r.activity || r.title || r.task || STATE[r.kind]);
+  b.append(glyph(r.kind, 20, { tile: true }), name, el('span', 'time', r.age), el('div', 'preview', preview));
+  if (r.question) b.append(el('span', 'badge', '1'));
+  b.onclick = () => select(r.key, r.name);
+  return b;
+}
+
+function repoLabel(task) {
+  const m = /github\.com\/[^/\s]+\/([^/\s]+)/.exec(task || '');
+  return m ? m[1].replace(/\.git$/, '') : '';
+}
+
+function select(key, name) {
+  if (state.term && (state.term.key !== key || state.term.name !== name)) closeTerminal();
+  state.sel = { key, name };
+  state.mode = 'chat';
+  state.convoFor = '';
+  renderList();
+  loadConvo().then(renderPane);
+}
+
+/* Helper pane */
+
+async function loadConvo() {
   const r = selectedRow();
-  if (!r) { sheet.hidden = true; return; }
-  // Keep a reply being typed alive across refreshes.
-  if (!sheet.hidden && sheet.dataset.name === r.name && document.activeElement?.closest('#sheet .reply')) return;
-  sheet.hidden = false;
-  sheet.dataset.name = r.name;
-  const kind = plantKind(r);
-  const t = cur();
-
-  const top = el('div', 'sheet-top');
-  const close = el('button', 'btn quiet small', 'Close');
-  close.onclick = () => { state.selected = null; renderGarden(); renderSheet(); };
-  top.append(close);
-
-  const hero = el('div', 'hero');
-  hero.append(plant(kind, 132, { pot: true }), el('h2', '', helperName(r.name)), el('div', `state ${kind}`, STATE[kind]));
-
-  const blocks = [];
-  const doing = el('div', 'block');
-  doing.append(el('h3', '', kind === 'done' ? 'What it did' : 'What it’s doing'));
-  doing.append(el('div', 'doing', r.title || r.task || 'Waiting for something to do.'));
-  if (r.activity && kind === 'grow') doing.append(el('div', 'latest', r.activity));
-  blocks.push(doing);
-
-  if (r.message && (kind === 'fail' || kind === 'seed')) {
-    const b = el('div', 'block');
-    b.append(el('div', 'problem', r.message));
-    blocks.push(b);
-  }
-  if (r.question) {
-    const b = el('div', 'block');
-    b.append(replyBox(t, r.question));
-    blocks.push(b);
-  }
-
-  const acts = el('div', 'acts');
-  const btn = (label, cls, fn) => { const b = el('button', `btn small ${cls}`, label); b.onclick = fn; acts.append(b); };
-  if (r.attachable) btn('Watch it work', 'primary', () => openTerminal(r.name));
-  if (!r.command) {
-    if (r.paused) btn('Wake it up', '', () => act(`${helperName(r.name)} is waking up`, () => App.Resume(t, r.name)));
-    else if (kind !== 'done') btn('Let it rest', '', () => act(`${helperName(r.name)} is resting`, () => App.Pause(t, r.name)));
-  }
-  btn('Send home', 'danger', () => confirmSendHome(r));
-
-  const details = el('details', 'details');
-  details.append(el('summary', '', 'Details'));
-  const dl = el('dl');
-  const add = (k, v) => { if (v) { dl.append(el('dt', '', k), el('dd', '', v)); } };
-  add('Session', r.name);
-  add('State', r.phase + (r.paused ? ' (paused)' : ''));
-  add('Task', r.task);
-  add('Planted', `${r.age} ago`);
-  add('CPU', r.cpu);
-  add('Memory', r.mem);
-  if (r.exit != null) add('Exit code', String(r.exit));
-  details.append(dl);
-
-  sheet.replaceChildren(top, hero, ...blocks, acts, details);
+  if (!r) { state.convo = []; return; }
+  try {
+    state.convo = (await App.Conversation(targetOf(r.key), r.name)) || [];
+    state.convoFor = `${r.key}/${r.name}`;
+  } catch { state.convo = []; }
 }
 
-function replyBox(t, q) {
-  const box = el('div', 'reply');
-  if (state.sent[q.name]) {
-    box.classList.add('sent');
-    box.append(el('div', 'q', `Sent: “${state.sent[q.name]}”`));
-    return box;
+function renderPane() {
+  const body = $('#pane-body');
+  const r = selectedRow();
+  if (!r) {
+    const e = el('div', 'pane-empty');
+    const inner = el('div');
+    inner.append(mark(34), el('h2', '', allRows().length ? 'Pick a helper' : 'Start your first helper'),
+      el('p', '', allRows().length ? 'Its conversation and work show here.' : 'A helper is an AI that works on one task until it’s done.'));
+    if (!allRows().length) { const b = el('button', 'btn primary', 'New helper'); b.onclick = openNew; inner.append(b); }
+    e.append(inner);
+    body.replaceChildren(e);
+    return;
   }
-  box.append(el('div', 'q', q.idle ? 'Your helper is waiting for you.' : q.text));
-  const send = async (answer) => {
-    try {
-      await App.Answer(t, q, answer);
-      state.sent[q.name] = answer;
-      delete state.drafts[q.name];
-      box.replaceChildren(el('div', 'q', `Sent: “${answer}”`));
-      box.classList.add('sent');
-      refresh();
-    } catch (e) {
-      toast(friendlyError(e), true);
-    }
-  };
-  const opts = el('div', 'opts');
-  if ((q.options || []).length) {
-    for (const o of q.options) {
-      const b = el('button', 'btn small', o);
-      b.onclick = () => send(o);
-      opts.append(b);
-    }
-    box.append(opts);
-    return box;
+  // Keep typing undisturbed.
+  if (document.activeElement?.closest('#pane-body .composer') && body.dataset.for === `${r.key}/${r.name}` && state.mode === 'chat') {
+    renderChat(body.querySelector('.chat-inner'), r);
+    return;
   }
+  body.dataset.for = `${r.key}/${r.name}`;
+  if (state.mode === 'terminal' && state.term && body.querySelector('.term-wrap')) { body.querySelector('.tabbar').replaceWith(tabbar(r)); return; }
+  const parts = [tabbar(r)];
+  if (state.mode === 'terminal') {
+    const wrap = el('div', 'term-wrap');
+    wrap.id = 'term-wrap';
+    parts.push(wrap);
+    body.replaceChildren(...parts);
+    openTerminal(r, wrap);
+    return;
+  }
+  const chat = el('div', 'chat');
+  const inner = el('div', 'chat-inner');
+  chat.append(inner);
+  renderChat(inner, r);
+  parts.push(chat, composer(r));
+  body.replaceChildren(...parts);
+  chat.scrollTop = chat.scrollHeight;
+}
+
+function tabbar(r) {
+  const t = targetOf(r.key);
+  const bar = el('div', 'tabbar');
+  const who = el('div', 'who');
+  who.append(glyph(r.kind, 16), helperName(r.name), el('span', 'where', `· ${gardenName(t)}`));
+  const st = el('div', `status ${r.kind}`);
+  st.append(el('span', 'sd'), STATE[r.kind]);
+  const seg = el('div', 'seg');
+  for (const [m, label] of [['chat', 'Chat'], ['terminal', 'Terminal']]) {
+    const b = el('button', '', label);
+    b.setAttribute('aria-pressed', String(state.mode === m));
+    b.disabled = m === 'terminal' && !r.attachable;
+    b.title = b.disabled ? 'Available while the helper is running' : '';
+    b.onclick = () => {
+      if (state.mode === m) return;
+      if (m === 'chat') closeTerminal();
+      state.mode = m;
+      $('#pane-body').dataset.for = '';
+      renderPane();
+    };
+    seg.append(b);
+  }
+  const more = el('button', 'icon-btn');
+  more.setAttribute('aria-label', 'More');
+  more.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><circle cx="5" cy="12" r="1.7" fill="currentColor"/><circle cx="12" cy="12" r="1.7" fill="currentColor"/><circle cx="19" cy="12" r="1.7" fill="currentColor"/></svg>';
+  more.onclick = (e) => openMenu(e.currentTarget, helperMenu(r));
+  bar.append(who, st, el('div', 'fill'), seg, more);
+  return bar;
+}
+
+function helperMenu(r) {
+  const t = targetOf(r.key);
+  const items = [];
+  if (!r.command) {
+    if (r.paused) items.push(['Resume', '', () => run(`${helperName(r.name)} resumed`, () => App.Resume(t, r.name))]);
+    else if (r.kind !== 'done') items.push(['Pause', '', () => run(`${helperName(r.name)} paused`, () => App.Pause(t, r.name))]);
+  }
+  items.push(['Copy session ID', '', () => navigator.clipboard?.writeText(r.name).then(() => toast('Copied'))]);
+  items.push(['Remove helper…', 'danger', () => confirmRemove(r)]);
+  return items;
+}
+
+function renderChat(inner, r) {
+  const msgs = state.convo;
+  const out = [];
+  let lastDay = '';
+  for (const m of msgs) {
+    const day = new Date(m.at).toDateString();
+    if (day !== lastDay) {
+      lastDay = day;
+      const today = day === new Date().toDateString();
+      out.push(el('div', 'day', `${today ? 'Today' : new Date(m.at).toLocaleDateString([], { month: 'short', day: 'numeric' })} ${clock(m.at)}`));
+    }
+    if (m.from === 'you') { out.push(el('div', 'msg-you', m.text)); continue; }
+    const h = el('div', 'msg-helper');
+    const meta = el('div', 'meta');
+    meta.append(el('b', '', helperName(r.name)), clock(m.at));
+    const text = el('div', 'text');
+    if (m.question) {
+      text.append(m.idle ? 'Finished a step and is waiting for you.' : m.text);
+      const card = el('div', 'ask-card' + (m.open ? '' : ' answered'));
+      if (m.open && (m.options || []).length) {
+        card.append(el('div', '', 'Pick one, or type below:'));
+        const opts = el('div', 'opts');
+        for (const o of m.options) {
+          const b = el('button', 'btn small', o);
+          b.onclick = () => answer(r, m, o);
+          opts.append(b);
+        }
+        card.append(opts);
+        text.append(card);
+      } else if (m.open) {
+        card.append(el('div', '', 'Type your reply below.'));
+        text.append(card);
+      } else if (m.answer) {
+        const a = el('div', 'answer');
+        a.append('You answered ', el('b', '', m.answer));
+        card.append(a);
+        text.append(card);
+      }
+    } else {
+      text.append(m.text);
+    }
+    h.append(glyph(m.open ? 'ask' : 'grow', 16, { tile: true }), meta, text);
+    out.push(h);
+  }
+  if (r.kind === 'grow' && !r.question) {
+    const w = el('div', 'working');
+    w.append(el('span', 'spin'), r.activity || r.title || 'Working…');
+    out.push(w);
+  }
+  if (r.kind === 'fail' && r.message) out.push(el('div', 'problem', r.message));
+  if (r.kind === 'seed') { const w = el('div', 'working'); w.append(el('span', 'spin'), 'Starting up…'); out.push(w); }
+  if (!msgs.length && r.kind !== 'grow' && r.kind !== 'seed') out.push(el('div', 'day', 'No messages yet.'));
+  inner.replaceChildren(...out);
+}
+
+function openQuestion() {
+  return [...state.convo].reverse().find((m) => m.question && m.open);
+}
+
+function composer(r) {
+  const c = el('div', 'composer');
+  const inner = el('div', 'composer-inner');
   const ta = el('textarea');
-  ta.placeholder = q.idle ? 'Tell it what to do next' : 'Your answer';
-  ta.value = state.drafts[q.name] || '';
-  ta.oninput = () => { state.drafts[q.name] = ta.value; };
-  const go = el('button', 'btn small primary', 'Send');
-  const submit = () => {
+  ta.rows = 1;
+  ta.placeholder = `Message ${helperName(r.name)}`;
+  const send = el('button', 'send');
+  send.setAttribute('aria-label', 'Send');
+  send.innerHTML = '<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true"><path d="M12 19V5M6 11l6-6 6 6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  send.disabled = true;
+  ta.oninput = () => {
+    send.disabled = !ta.value.trim();
+    ta.style.height = 'auto';
+    ta.style.height = `${Math.min(ta.scrollHeight, 160)}px`;
+  };
+  const go = async () => {
     const v = ta.value.trim();
     if (!v) return;
-    go.disabled = true;
-    send(v).finally(() => { go.disabled = false; });
+    send.disabled = true;
+    const q = openQuestion();
+    try {
+      if (q) await App.Answer(targetOf(r.key), { name: q.question, session: r.name, text: q.text, idle: !!q.idle }, v);
+      else await App.SendMessage(targetOf(r.key), r.name, v);
+      ta.value = '';
+      ta.style.height = 'auto';
+      await refresh();
+    } catch (e) {
+      toast(friendly(e), true);
+    }
+    send.disabled = !ta.value.trim();
   };
-  go.onclick = submit;
-  ta.onkeydown = (e) => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) submit(); };
-  opts.append(go);
-  box.append(ta, opts);
-  return box;
+  send.onclick = go;
+  ta.onkeydown = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); go(); } };
+  inner.append(ta, send);
+  c.append(inner);
+  return c;
 }
 
-function confirmSendHome(r) {
+async function answer(r, m, value) {
+  try {
+    await App.Answer(targetOf(r.key), { name: m.question, session: r.name, text: m.text, idle: !!m.idle }, value);
+    toast('Sent');
+    await refresh();
+  } catch (e) { toast(friendly(e), true); }
+}
+
+function confirmRemove(r) {
   const d = $('#confirm-dialog');
-  $('#confirm-title').textContent = `Send ${helperName(r.name)} home?`;
-  $('#confirm-body').textContent = 'It stops working, and its files and conversation are deleted. This can’t be undone.';
+  $('#confirm-title').textContent = `Remove ${helperName(r.name)}?`;
+  $('#confirm-body').textContent = 'It stops, and its files and conversation are deleted. This can’t be undone.';
   d.returnValue = '';
   d.showModal();
   d.onclose = () => {
     if (d.returnValue !== 'ok') return;
-    state.selected = null;
-    act(`${helperName(r.name)} went home`, () => App.Delete(cur(), r.name));
+    closeTerminal();
+    state.sel = null;
+    run(`${helperName(r.name)} removed`, () => App.Delete(targetOf(r.key), r.name));
   };
 }
 
-/* Refresh */
+/* Menu */
 
-async function refresh() {
-  const targets = state.targets;
-  if (!targets.length) { renderGarden(); return; }
-  await Promise.all(targets.map(async (t, i) => {
-    const f = await App.Fleet(t);
-    state.summaries[keyOf(t)] = { needsYou: f.needsYou, running: f.running, error: f.error, total: (f.rows || []).length };
-    if (i === state.current) state.fleet = f;
+function openMenu(anchor, items) {
+  const m = $('#menu');
+  m.replaceChildren(...items.map(([label, cls, fn]) => {
+    const b = el('button', cls, label);
+    b.onclick = () => { m.hidden = true; fn(); };
+    return b;
   }));
-  renderRail();
-  renderGarden();
-  renderSheet();
-  notifyChanges();
-  loadHealth();
+  const r = anchor.getBoundingClientRect();
+  m.hidden = false;
+  m.style.top = `${r.bottom + 6}px`;
+  m.style.left = `${Math.max(8, r.right - m.offsetWidth)}px`;
+  setTimeout(() => document.addEventListener('click', () => { m.hidden = true; }, { once: true }), 0);
 }
 
-/* New helper */
-
-function openNew() {
-  $('#new-form').reset();
-  $('#new-dialog').showModal();
-}
-$('#new-btn').onclick = openNew;
-$('#empty-new').onclick = openNew;
-$('#new-cancel').onclick = () => $('#new-dialog').close();
-$('#new-form').onsubmit = async (e) => {
-  e.preventDefault();
-  const data = Object.fromEntries(new FormData(e.target));
-  $('#new-dialog').close();
-  try {
-    const name = await App.NewSession(cur(), data);
-    state.selected = name;
-    toast(`${helperName(name)} is planted`);
-    refresh();
-    if (!data.task.trim()) waitThenWatch(name);
-  } catch (err) {
-    toast(friendlyError(err), true);
-  }
-};
-
-async function waitThenWatch(name) {
-  for (let i = 0; i < 60; i++) {
-    await new Promise((r) => setTimeout(r, 2000));
-    if ((state.fleet?.rows || []).find((r) => r.name === name)?.attachable) { openTerminal(name); return; }
-  }
-}
-
-/* Watching a helper work: its real terminal */
+/* Terminal */
 
 const enc = new TextEncoder();
 const toB64 = (s) => { let b = ''; for (const c of enc.encode(s)) b += String.fromCharCode(c); return btoa(b); };
 const fromB64 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
-const termTheme = {
-  background: '#15231A', foreground: '#E4F2E6', cursor: '#7EE08E', selectionBackground: '#2E4A36',
-  black: '#1E3A28', red: '#E8907F', green: '#7EE08E', yellow: '#F2C66B', blue: '#8DB8DA',
-  magenta: '#E7A1C0', cyan: '#86CFC4', white: '#E4F2E6',
-  brightBlack: '#6E8574', brightRed: '#F2A99B', brightGreen: '#A6EDB0', brightYellow: '#F7D88F',
-  brightBlue: '#AFCFE8', brightMagenta: '#F0BCD3', brightCyan: '#A8DED6', brightWhite: '#F7FBF6',
+const theme = {
+  background: '#0D110E', foreground: '#DCE6DE', cursor: '#46D87A', selectionBackground: '#2B3A2F',
+  black: '#1D231E', red: '#EF7461', green: '#46D87A', yellow: '#F4B44C', blue: '#7FB2E0', magenta: '#E58BB5', cyan: '#6FCFC1', white: '#DCE6DE',
+  brightBlack: '#5D6A61', brightRed: '#F59585', brightGreen: '#7BE7A0', brightYellow: '#F7CB7A', brightBlue: '#A3C9EC', brightMagenta: '#EFADCB', brightCyan: '#97DDD3', brightWhite: '#F4F8F5',
 };
 
-async function openTerminal(session) {
-  const t = cur();
-  const existing = state.terms.find((x) => x.session === session && x.key === keyOf(t) && !x.closed);
-  if (existing) { activate(existing); return; }
+async function openTerminal(r, wrap) {
+  if (state.term) { wrap.append(state.term.host); state.term.fit.fit(); state.term.term.focus(); return; }
   const host = el('div', 'term');
-  $('#term-host').append(host);
-  const term = new Terminal({
-    fontFamily: "ui-monospace, Menlo, monospace", fontSize: 13, lineHeight: 1.15,
-    cursorBlink: true, allowProposedApi: true, theme: termTheme, scrollback: 0,
-  });
+  wrap.append(host);
+  const term = new Terminal({ fontFamily: "'Geist Mono Variable', ui-monospace, Menlo, monospace", fontSize: 12.5, lineHeight: 1.15, cursorBlink: true, allowProposedApi: true, theme, scrollback: 0 });
   const fit = new FitAddon();
   term.loadAddon(fit);
   term.open(host);
-  $('#watch').hidden = false;
   fit.fit();
-  const entry = { id: null, session, key: keyOf(t), term, fit, el: host, closed: false };
-  state.terms.push(entry);
-  activate(entry);
-  term.write(`\x1b[2mconnecting to ${helperName(session)}…\x1b[0m\r\n`);
+  const entry = { id: null, key: r.key, name: r.name, term, fit, host, closed: false };
+  state.term = entry;
+  term.write(`\x1b[2mconnecting to ${helperName(r.name)}…\x1b[0m\r\n`);
   try {
-    entry.id = await App.OpenTerminal(t, session, term.cols, term.rows);
+    entry.id = await App.OpenTerminal(targetOf(r.key), r.name, term.cols, term.rows);
   } catch (e) {
-    term.write(`\r\n\x1b[31m${friendlyError(e)}\x1b[0m\r\n`);
+    term.write(`\r\n\x1b[31m${friendly(e)}\x1b[0m\r\n`);
     entry.closed = true;
-    renderTabs();
     return;
   }
   EventsOn(`term:${entry.id}`, (b64) => term.write(fromB64(b64)));
   EventsOn(`term-closed:${entry.id}`, (reason) => {
     entry.closed = true;
-    term.write(`\r\n\x1b[2m[stopped watching${reason ? `: ${reason}` : ''}]\x1b[0m\r\n`);
+    term.write(`\r\n\x1b[2m[disconnected${reason ? `: ${reason}` : ''}]\x1b[0m\r\n`);
     EventsOff(`term:${entry.id}`, `term-closed:${entry.id}`);
-    renderTabs();
   });
   term.onData((d) => { if (!entry.closed) App.TermInput(entry.id, toB64(d)); });
   term.onResize(({ cols, rows }) => { if (!entry.closed) App.TermResize(entry.id, cols, rows); });
-  renderTabs();
+  term.focus();
 }
 
-function activate(entry) {
-  state.activeTerm = entry;
-  for (const x of state.terms) x.el.hidden = x !== entry;
-  renderTabs();
-  requestAnimationFrame(() => { entry.fit.fit(); entry.term.focus(); });
-}
-
-function closeTerm(entry) {
-  if (entry.id && !entry.closed) App.CloseTerminal(entry.id);
-  entry.term.dispose();
-  entry.el.remove();
-  state.terms = state.terms.filter((x) => x !== entry);
-  if (state.activeTerm === entry) state.activeTerm = null;
-  if (state.terms.length) activate(state.terms[state.terms.length - 1]);
-  else $('#watch').hidden = true;
-  renderTabs();
-}
-
-function renderTabs() {
-  $('#tabs').replaceChildren(...state.terms.map((x) => {
-    const b = el('div', 'tab' + (x.closed ? ' closed' : ''), helperName(x.session));
-    b.setAttribute('role', 'tab');
-    b.setAttribute('aria-selected', String(x === state.activeTerm));
-    b.tabIndex = 0;
-    const close = el('button', 'x', '×');
-    close.title = 'Stop watching (the helper keeps working)';
-    close.onclick = (e) => { e.stopPropagation(); closeTerm(x); };
-    b.append(close);
-    b.onclick = () => activate(x);
-    return b;
-  }));
-}
-
-$('#watch-close').onclick = () => { for (const x of [...state.terms]) closeTerm(x); };
-new ResizeObserver(() => { if (state.activeTerm) state.activeTerm.fit.fit(); }).observe($('#term-host'));
-let lastWidth = 0;
-new ResizeObserver(() => {
-  const w = $('.greenhouse').clientWidth;
-  if (Math.abs(w - lastWidth) > 40) { lastWidth = w; renderGarden(); }
-}).observe($('.greenhouse'));
-
-/* Health notices: what quietly breaks a garden, with the fix beside it */
-
-const healthCache = {};
-
-async function loadHealth(force = false) {
-  const t = cur();
+function closeTerminal() {
+  const t = state.term;
   if (!t) return;
-  const key = keyOf(t);
-  const c = healthCache[key];
-  if (!force && c && Date.now() - c.at < 30000) { renderNotices(c.h); return; }
-  let h = null;
-  try { h = await App.Health(t); } catch { /* unreachable: shown by the summary */ }
-  healthCache[key] = { h, at: Date.now() };
-  if (keyOf(cur()) === key) renderNotices(h);
+  if (t.id && !t.closed) App.CloseTerminal(t.id);
+  t.term.dispose();
+  t.host.remove();
+  state.term = null;
 }
 
-function notice(level, head, body, ...controls) {
-  const n = el('div', `notice ${level}`);
-  const txt = el('div', 'ntext');
-  txt.append(el('b', '', head));
-  if (body) txt.append(body);
-  n.append(txt, ...controls);
-  return n;
+new ResizeObserver(() => { if (state.term) state.term.fit.fit(); }).observe($('#pane'));
+
+/* Gardens view */
+
+async function renderGardens() {
+  state.gardens = (await App.Gardens()) || [];
+  const rows = await Promise.all(state.gardens.map(async (g) => {
+    const key = keyOf(g.target);
+    const f = state.fleets[key];
+    let h = state.health[key];
+    if (!h || Date.now() - h.at > 30000) {
+      let v = null;
+      try { v = await App.Health(g.target); } catch { /* unreachable */ }
+      h = state.health[key] = { h: v, at: Date.now() };
+    }
+    return gardenRow(g, f, h.h);
+  }));
+  $('#gv-rows').replaceChildren(...rows);
 }
 
-function smallButton(label, fn) {
-  const b = el('button', 'btn small', label);
-  b.onclick = async () => {
-    b.disabled = true;
-    try { await fn(); } catch (e) { toast(friendlyError(e), true); }
-    b.disabled = false;
+function gardenRow(g, f, h) {
+  const t = g.target;
+  const row = el('div', 'gv-row');
+  const asleep = !!(f && f.error);
+  const kind = asleep ? 'rest' : (f?.needsYou ? 'ask' : 'grow');
+  const name = el('div', 'gname');
+  name.append(el('b', '', gardenName(t)), el('span', '', g.where || t.context));
+  const status = el('div', 'cell');
+  const pill = el('span', 'pill' + (asleep ? ' off' : f?.needsYou ? ' warn' : ''), asleep ? (g.local ? 'Asleep' : 'Unreachable') : 'Awake');
+  status.append(pill);
+  const helpers = el('div', 'cell');
+  helpers.append(el('b', '', asleep ? '—' : `${(f?.rows || []).length} helper${(f?.rows || []).length === 1 ? '' : 's'}`),
+    el('span', '', f?.needsYou ? `${f.needsYou} need${f.needsYou === 1 ? 's' : ''} you` : ''));
+  const disk = el('div', 'cell');
+  const n = h?.nodes?.[0];
+  if (n && n.diskTotalGB > 0) {
+    const used = 1 - n.diskFreeGB / n.diskTotalGB;
+    disk.append(el('span', '', `${n.diskFreeGB.toFixed(0)} GB free of ${n.diskTotalGB.toFixed(0)}`));
+    const bar = el('div', 'disk' + (n.diskPressure ? ' full' : used > 0.8 ? ' low' : ''));
+    const fill = el('i');
+    fill.style.width = `${Math.round(used * 100)}%`;
+    bar.append(fill);
+    disk.append(bar);
+  } else {
+    disk.append(el('span', '', '\u2014'));
+  }
+  const actions = el('div', 'gv-actions');
+  if (asleep && g.local) {
+    const b = el('button', 'btn small green', 'Wake');
+    b.onclick = () => run(`${gardenName(t)} is awake`, async () => { toast('Waking…'); await App.StartVM(t.context); });
+    actions.append(b);
+  }
+  if (!asleep) {
+    const b = el('button', 'btn small', 'New helper');
+    b.onclick = () => openNew(t);
+    actions.append(b);
+  }
+  row.append(glyph(kind, 20, { tile: true }), name, status, helpers, disk, actions);
+
+  const notes = [];
+  if (asleep) h = null;
+  if (n?.diskPressure) notes.push(['bad', 'Out of disk: new helpers can’t start until space is freed on this computer.']);
+  if (h && (h.runtimeMissing || []).length) notes.push(['', 'An update is available for this garden.', 'Update', async () => { await App.UpgradeRuntime(t); toast('Updated'); state.health = {}; renderGardens(); }]);
+  if (h && h.signIn === 'none') notes.push(['', 'Helpers can’t sign in here yet.', 'copy']);
+  for (const [cls, text, act, fn] of notes) {
+    const note = el('div', 'gv-note' + (cls ? ` ${cls}` : ''));
+    note.append(text);
+    if (act === 'copy') {
+      const others = state.targets.filter((x) => keyOf(x) !== keyOf(t) && !state.fleets[keyOf(x)]?.error && x.context !== '__demo__');
+      if (others.length) {
+        const sel = el('select');
+        for (const o of others) sel.append(new Option(`from ${gardenName(o)}`, keyOf(o)));
+        const b = el('button', 'btn small', 'Copy sign-in');
+        b.onclick = () => run('Sign-in copied', async () => { await App.CopyCredentials(targetOf(sel.value), t); state.health = {}; });
+        note.append(sel, b);
+      }
+    } else if (act) {
+      const b = el('button', 'btn small', act);
+      b.onclick = () => fn().catch((e) => toast(friendly(e), true));
+      note.append(b);
+    }
+    row.append(note);
+  }
+  return row;
+}
+
+/* Views */
+
+function setView(v) {
+  state.view = v;
+  $('#app').classList.toggle('gardens', v === 'gardens');
+  $('#gardens-view').hidden = v !== 'gardens';
+  for (const b of document.querySelectorAll('.rail-btn[data-view]')) b.setAttribute('aria-current', String(b.dataset.view === v));
+  if (v === 'gardens') { closeTerminal(); renderGardens(); } else { renderPane(); }
+}
+for (const b of document.querySelectorAll('.rail-btn[data-view]')) b.onclick = () => setView(b.dataset.view);
+$('#help').onclick = () => BrowserOpenURL('https://tinysystems.io/docs/');
+
+function renderBadge() {
+  const n = allRows().filter((r) => r.kind === 'ask').length;
+  const b = $('#rail-badge');
+  b.hidden = !n;
+  b.textContent = String(n);
+  document.title = n ? `Tiny Systems (${n})` : 'Tiny Systems';
+}
+
+/* Filters and search */
+
+for (const b of document.querySelectorAll('#filters button')) {
+  b.onclick = () => {
+    state.filter = b.dataset.filter;
+    for (const x of document.querySelectorAll('#filters button')) x.setAttribute('aria-selected', String(x === b));
+    renderList();
   };
-  return b;
 }
-
-async function renderNotices(h) {
-  const t = cur();
-  const out = [];
-  if (state.fleet?.error) {
-    const st = await App.Local();
-    const vm = (st.vms || []).find((v) => v.name === t.name || v.name === t.context);
-    if (vm && vm.status !== 'Running') {
-      out.push(notice('', `${gardenName(t)} is asleep`, 'It lives on this Mac and stops when the Mac restarts.',
-        smallButton('Wake it', async () => { toast('Waking the garden…'); await App.StartVM(vm.name); toast(`${gardenName(t)} is awake`); refresh(); })));
-    } else {
-      out.push(notice('', `${gardenName(t)} can’t be reached`, 'Check that the computer it lives on is on and connected.'));
-    }
-  }
-  if (h) {
-    for (const n of h.nodes || []) {
-      if (n.diskPressure) out.push(notice('bad', 'This garden is out of space', 'New helpers can’t start until some disk space is freed on its computer.'));
-      else if (n.diskTotalGB > 0 && n.diskFreeGB / n.diskTotalGB < 0.2) out.push(notice('', 'Space is running low', `${n.diskFreeGB.toFixed(0)} GB left of ${n.diskTotalGB.toFixed(0)} GB. Helpers stop starting when it gets very full.`));
-      if (n.memoryPressure) out.push(notice('', 'This garden is short of memory', 'Helpers may slow down. Letting some rest frees memory.'));
-    }
-    if ((h.runtimeMissing || []).length) {
-      out.push(notice('', 'An update is ready for this garden', 'Newer helpers need it to work properly.',
-        smallButton('Update', async () => { await App.UpgradeRuntime(t); toast('Garden updated'); loadHealth(true); })));
-    }
-    if (h.signIn === 'none') {
-      const others = state.targets.filter((x) => keyOf(x) !== keyOf(t));
-      const sel = el('select');
-      for (const o of others) sel.append(new Option(`from ${gardenName(o)}`, keyOf(o)));
-      const controls = others.length ? [sel, smallButton('Copy sign-in', async () => {
-        const from = others.find((o) => keyOf(o) === sel.value);
-        await App.CopyCredentials(from, t);
-        toast(`Sign-in copied from ${gardenName(from)}`);
-        loadHealth(true);
-      })] : [];
-      out.push(notice('', 'Helpers can’t sign in here yet', others.length ? 'Copy the sign-in from another garden.' : 'Sign in with `tiny setup` in the terminal.', ...controls));
-    }
-  }
-  $('#notices').replaceChildren(...out);
-}
+$('#search').oninput = (e) => { state.query = e.target.value; renderList(); };
 
 /* Notifications */
 
-const lastNeeds = {};
-function notifyChanges() {
+const lastAsk = {};
+function notify() {
   for (const t of state.targets) {
     const k = keyOf(t);
-    const now = state.summaries[k]?.needsYou ?? 0;
-    if (lastNeeds[k] !== undefined && now > lastNeeds[k]) {
-      App.Notify('Tiny Systems', `A helper in ${gardenName(t)} needs you`);
-    }
-    lastNeeds[k] = now;
+    const now = state.fleets[k]?.needsYou ?? 0;
+    if (lastAsk[k] !== undefined && now > lastAsk[k]) App.Notify('Tiny Systems', `A helper in ${gardenName(t)} needs you`);
+    lastAsk[k] = now;
   }
-  const waiting = Object.values(state.summaries).reduce((n, s) => n + (s.needsYou || 0), 0);
-  document.title = waiting ? `Tiny Systems (${waiting})` : 'Tiny Systems';
 }
 
-/* Planting a garden: a short guided flow */
+/* New helper */
 
-const wz = { req: null, events: [] };
-
-function wizard(...children) {
-  $('#wz').replaceChildren(...children);
-  if (!$('#wizard').open) $('#wizard').showModal();
+function openNew(target) {
+  $('#new-form').reset();
+  const sel = $('#new-garden');
+  const live = state.targets.filter((t) => !state.fleets[keyOf(t)]?.error);
+  sel.replaceChildren(...live.map((t) => new Option(gardenName(t), keyOf(t))));
+  const pick = target ? keyOf(target) : state.sel?.key;
+  if (pick && live.some((t) => keyOf(t) === pick)) sel.value = pick;
+  if (!live.length) { toast('Add a garden first: that’s where helpers live.', true); return; }
+  $('#new-dialog').showModal();
 }
+$('#new-btn').onclick = () => openNew();
+$('#new-cancel').onclick = () => $('#new-dialog').close();
+$('#new-form').onsubmit = async (e) => {
+  e.preventDefault();
+  const d = Object.fromEntries(new FormData(e.target));
+  $('#new-dialog').close();
+  const t = targetOf(d.garden);
+  try {
+    const name = await App.NewSession(t, { task: d.task, repo: d.repo, agent: d.agent, model: d.model, image: d.image });
+    toast(`${helperName(name)} started`);
+    setView('helpers');
+    await refresh();
+    select(keyOf(t), name);
+  } catch (err) { toast(friendly(err), true); }
+};
 
-function actions(...buttons) {
-  const a = el('div', 'actions');
-  a.append(...buttons);
-  return a;
-}
+/* Add a garden: a short guided flow */
 
-function wbtn(label, cls, fn) {
-  const b = el('button', `btn ${cls}`, label);
-  b.type = 'button';
-  b.onclick = fn;
-  return b;
-}
-
+const wz = { req: null };
+const wizard = (...c) => { $('#wz').replaceChildren(...c); if (!$('#wizard').open) $('#wizard').showModal(); };
+const actionsRow = (...b) => { const a = el('div', 'actions'); a.append(...b); return a; };
+const wbtn = (label, cls, fn) => { const b = el('button', `btn ${cls}`, label); b.type = 'button'; b.onclick = fn; return b; };
 function field(label, name, attrs = {}, opt) {
   const l = el('label', 'field');
   l.append(label);
@@ -571,37 +608,33 @@ function stepWhere() {
   const places = el('div', 'places');
   const mac = el('button', 'place');
   mac.type = 'button';
-  mac.append(plant('grow', 64, { pot: true }), el('b', '', 'On this Mac'), el('span', '', 'Quickest to start. Helpers work while your Mac is awake.'));
+  mac.append(glyph('grow', 22, { tile: true }), el('b', '', 'This Mac'), el('span', '', 'Quickest to start. Helpers work while the Mac is awake.'));
   mac.onclick = () => stepDetails('mac');
   const other = el('button', 'place');
   other.type = 'button';
-  other.append(plant('done', 64, { pot: true }), el('b', '', 'On another computer'), el('span', '', 'A spare computer at home or in the office that stays on. Helpers keep working while you’re away.'));
+  other.append(glyph('done', 22, { tile: true }), el('b', '', 'Another computer'), el('span', '', 'A computer at home or in the office that stays on. Helpers keep working while you’re away.'));
   other.onclick = () => stepDetails('remote');
   places.append(mac, other);
-  wizard(el('h2', '', 'Plant a new garden'), el('p', 'lead', 'Where should your helpers live?'), places,
-    actions(wbtn('Cancel', 'quiet', () => $('#wizard').close())));
+  wizard(el('h2', '', 'Add a garden'), el('p', 'lead', 'Where should your helpers live?'), places, actionsRow(wbtn('Cancel', 'ghost', () => $('#wizard').close())));
 }
 
 function stepDetails(where) {
   const form = el('form');
-  form.style.cssText = 'padding:0;display:flex;flex-direction:column;gap:16px';
-  form.append(field('Name your garden', 'name', { required: true, placeholder: where === 'mac' ? 'my-mac' : 'office', pattern: '[a-z0-9]([-a-z0-9]*[a-z0-9])?', title: 'lowercase letters, numbers and dashes' }));
+  form.style.cssText = 'padding:0;display:flex;flex-direction:column;gap:13px';
+  form.append(field('Name', 'name', { required: true, placeholder: where === 'mac' ? 'my-mac' : 'office', pattern: '[a-z0-9]([-a-z0-9]*[a-z0-9])?', title: 'lowercase letters, numbers and dashes' }));
   if (where === 'remote') {
-    form.append(el('p', 'hint', 'Tiny Systems connects to the computer with SSH, using the keys already on this Mac.'));
-    const row = el('div', 'row2');
-    row.append(field('Computer’s address', 'host', { required: true, placeholder: '192.168.1.20' }), field('User name on it', 'user', { required: true, placeholder: 'ubuntu' }));
-    form.append(row);
+    const r = el('div', 'row2');
+    r.append(field('Address', 'host', { required: true, placeholder: '192.168.1.20' }), field('SSH user', 'user', { required: true, placeholder: 'ubuntu' }));
+    form.append(r, el('p', 'hint', 'Connects over SSH with the keys already on this Mac.'));
   }
   const creds = el('label', 'field');
-  creds.append('How should helpers sign in?');
+  creds.append('Sign helpers in');
   const sel = el('select');
   sel.name = 'copyFrom';
-  for (const [i, t] of state.targets.entries()) sel.append(new Option(`The same way as ${gardenName(t)}`, String(i)));
-  sel.append(new Option('I’ll set it up later', ''));
-  if (state.targets.length) sel.value = String(state.current ?? 0);
+  for (const [i, t] of state.targets.entries()) if (!state.fleets[keyOf(t)]?.error && t.context !== '__demo__') sel.append(new Option(`Same as ${gardenName(t)}`, String(i)));
+  sel.append(new Option('Later', ''));
   creds.append(sel);
   form.append(creds);
-
   const adv = el('details', 'advanced');
   adv.append(el('summary', '', 'Advanced'));
   const safety = el('label', 'check');
@@ -609,159 +642,133 @@ function stepDetails(where) {
   cb.type = 'checkbox';
   cb.name = 'gvisor';
   cb.checked = true;
-  safety.append(cb, 'Extra safety (recommended). Helpers run in a sealed box, so even a misbehaving one can’t reach the rest of the computer.');
+  safety.append(cb, 'Extra isolation (recommended): helpers run in a sandbox, sealed off from the computer.');
   adv.append(safety);
   if (where === 'mac') {
     const r = el('div', 'row3');
-    r.append(field('Processors', 'cpus', { type: 'number', value: '2', min: '1', max: '16' }),
-      field('Memory (GB)', 'memoryGB', { type: 'number', value: '4', min: '2', max: '64' }),
-      field('Disk (GB)', 'diskGB', { type: 'number', value: '40', min: '20', max: '500' }));
+    r.append(field('CPUs', 'cpus', { type: 'number', value: '2', min: '1', max: '16' }), field('Memory GB', 'memoryGB', { type: 'number', value: '4', min: '2', max: '64' }), field('Disk GB', 'diskGB', { type: 'number', value: '40', min: '20', max: '500' }));
     adv.append(r);
   } else {
     const r = el('div', 'row2');
-    r.append(field('SSH port', 'port', { type: 'number', value: '22', min: '1', max: '65535' }),
-      field('Key file', 'keyFile', { placeholder: '~/.ssh/id_ed25519' }, 'optional'));
-    adv.append(r, field('Password for sudo', 'sudoPassword', { type: 'password', autocomplete: 'off', placeholder: 'only if it asks; never stored' }, 'optional'));
+    r.append(field('SSH port', 'port', { type: 'number', value: '22', min: '1', max: '65535' }), field('Key file', 'keyFile', { placeholder: '~/.ssh/id_ed25519' }, 'optional'));
+    adv.append(r, field('Sudo password', 'sudoPassword', { type: 'password', autocomplete: 'off', placeholder: 'only if asked; never stored' }, 'optional'));
   }
   adv.append(field('Namespace', 'namespace', { placeholder: 'tiny' }, 'optional'));
   form.append(adv);
-
-  const plantBtn = el('button', 'btn primary', 'Plant garden');
-  plantBtn.type = 'submit';
-  form.append(actions(wbtn('Back', 'quiet', stepWhere), plantBtn));
+  const go = el('button', 'btn primary', 'Create garden');
+  go.type = 'submit';
+  form.append(actionsRow(wbtn('Back', 'ghost', stepWhere), go));
   form.onsubmit = async (e) => {
     e.preventDefault();
     const d = Object.fromEntries(new FormData(form));
     const copyFrom = d.copyFrom === '' ? null : state.targets[Number(d.copyFrom)];
     if (where === 'mac') {
-      const st = await App.Local();
-      if (!st.lima) { toast('One more thing first: install Lima with `brew install lima`, then try again.', true); return; }
-      startGrowing({ local: true, name: d.name.trim(), gvisor: !!d.gvisor, cpus: Number(d.cpus), memoryGB: Number(d.memoryGB), diskGB: Number(d.diskGB), copyFrom });
+      if (!(await App.Local()).lima) { toast('Install Lima first: brew install lima', true); return; }
+      grow({ local: true, name: d.name.trim(), gvisor: !!d.gvisor, cpus: Number(d.cpus), memoryGB: Number(d.memoryGB), diskGB: Number(d.diskGB), copyFrom });
     } else {
-      startGrowing({ name: d.name.trim(), host: d.host.trim(), user: d.user.trim(), port: Number(d.port) || 22,
-        keyFile: (d.keyFile || '').trim(), sudoPassword: d.sudoPassword || '', namespace: (d.namespace || '').trim() || 'tiny',
-        gvisor: !!d.gvisor, trustFingerprint: '', copyFrom });
+      grow({ name: d.name.trim(), host: d.host.trim(), user: d.user.trim(), port: Number(d.port) || 22, keyFile: (d.keyFile || '').trim(), sudoPassword: d.sudoPassword || '',
+        namespace: (d.namespace || '').trim() || 'tiny', gvisor: !!d.gvisor, trustFingerprint: '', copyFrom });
     }
   };
-  wizard(el('h2', '', where === 'mac' ? 'A garden on this Mac' : 'A garden on another computer'), form);
+  wizard(el('h2', '', where === 'mac' ? 'Garden on this Mac' : 'Garden on another computer'), form);
 }
 
-const GROW_STEPS = [
-  ['vm', 'Making room on this Mac'],
-  ['connect', 'Saying hello to the computer'],
-  ['preflight', 'Checking there’s enough space'],
-  ['k3s', 'Preparing the soil'],
-  ['gvisor', 'Building the safety box'],
-  ['kubeconfig', 'Remembering the way there'],
-  ['runtime', 'Setting up the garden'],
-  ['credentials', 'Teaching helpers to sign in'],
+const STEPS = [
+  ['vm', 'Create a virtual machine'], ['connect', 'Connect'], ['preflight', 'Check the computer'], ['k3s', 'Install Kubernetes'],
+  ['gvisor', 'Install the sandbox'], ['kubeconfig', 'Save the connection'], ['runtime', 'Set up the garden'], ['credentials', 'Sign helpers in'],
 ];
 
-function startGrowing(req) {
+function grow(req) {
   wz.req = req;
-  const steps = GROW_STEPS.filter(([id]) => (id !== 'gvisor' || req.gvisor) && (id !== 'vm' || req.local));
-  const list = el('div', 'growing');
-  list.id = 'growing';
-  for (const [id, label] of steps) {
-    const s = el('div', 'gstep');
+  const list = el('div', 'steps');
+  list.id = 'steps';
+  for (const [id, label] of STEPS.filter(([id]) => (id !== 'gvisor' || req.gvisor) && (id !== 'vm' || req.local))) {
+    const s = el('div', 'step');
     s.dataset.step = id;
-    const txt = el('div');
-    txt.append(label, el('span', 'gdetail'));
-    s.append(plant('seed', 34), txt);
+    s.append(el('span', 'ic'), el('span', '', label), el('span', 'sd'));
     list.append(s);
   }
-  const log = el('details', 'techlog');
-  log.append(el('summary', '', 'Show details'), el('pre'));
-  log.querySelector('pre').id = 'grow-log';
   const trust = el('div', 'trust');
   trust.id = 'trust';
   trust.hidden = true;
-  const closeBtn = wbtn('Close', 'quiet', () => $('#wizard').close());
-  closeBtn.id = 'grow-close';
-  closeBtn.disabled = true;
-  const head = el('h2', '', `Planting ${title(req.name)}`);
-  head.id = 'grow-title';
-  wizard(head, el('p', 'lead', req.local ? 'This takes a few minutes the first time.' : 'This takes a few minutes. You can keep using the app.'), list, trust, log, actions(closeBtn));
-  const run = req.local
+  const log = el('details', 'techlog');
+  const pre = el('pre');
+  pre.id = 'grow-log';
+  log.append(el('summary', '', 'Log'), pre);
+  const close = wbtn('Close', 'ghost', () => $('#wizard').close());
+  close.id = 'grow-close';
+  close.disabled = true;
+  const h = el('h2', '', `Creating ${req.name}`);
+  h.id = 'grow-title';
+  wizard(h, el('p', 'lead', 'Takes a few minutes. You can keep working.'), list, trust, log, actionsRow(close));
+  const p = req.local
     ? App.InstallLocal({ name: req.name, cpus: req.cpus, memoryGB: req.memoryGB, diskGB: req.diskGB, gvisor: req.gvisor, copyFrom: req.copyFrom })
     : App.Install(req);
-  run.catch((e) => growFinished(false, friendlyError(e)));
+  p.catch((e) => finish(false, friendly(e)));
 }
 
 function markStep(s, cls, detail) {
-  s.className = `gstep ${cls}`;
-  const kind = { active: 'grow', ok: 'done', warn: 'ask', error: 'fail' }[cls] || 'seed';
-  s.firstChild.replaceWith(plant(kind, 34));
-  if (detail != null) s.querySelector('.gdetail').textContent = detail;
+  s.className = `step ${cls}`;
+  if (detail != null) s.querySelector('.sd').textContent = detail;
 }
 
-function growFinished(ok, text) {
+function finish(ok, text) {
   $('#grow-close').disabled = false;
-  $('#grow-title').textContent = ok ? `${title(wz.req.name)} is ready` : 'Planting stopped';
+  $('#grow-title').textContent = ok ? `${title(wz.req.name)} is ready` : 'Setup stopped';
   if (!ok) {
-    const s = document.querySelector('#growing .gstep.active') || document.querySelector('#growing .gstep:not(.ok):not(.warn)');
+    const s = document.querySelector('#steps .step.active') || document.querySelector('#steps .step:not(.ok):not(.warn)');
     if (s) markStep(s, 'error', text);
   }
-}
-
-// Plain-language detail for a step, instead of the installer's own words.
-function stepDetail(e) {
-  if (e.level === 'warn') return e.text.replace(/`[^`]*`/g, (m) => m.slice(1, -1));
-  if (e.level === 'ok' && e.step === 'gvisor') return 'Helpers here run sealed off from the computer.';
-  if (e.level === 'ok' && e.step === 'preflight') return e.text.split(',').slice(0, 2).join(',');
-  return '';
 }
 
 EventsOn('install:event', (e) => {
   const log = $('#grow-log');
   if (log) { log.textContent += (e.level === 'log' ? '  ' : '• ') + e.text + '\n'; log.scrollTop = log.scrollHeight; }
-  if (!$('#growing')) return;
+  if (!$('#steps')) return;
   if (e.level === 'hostkey') {
-    const trust = $('#trust');
-    trust.hidden = false;
-    trust.replaceChildren(el('p', '', 'This is the first time this Mac connects to that computer. If you can, check the computer shows the same code, then continue:'),
-      el('code', '', e.data.fingerprint), actions(wbtn('Cancel', 'quiet', () => $('#wizard').close()),
-        wbtn('It matches, continue', 'primary', () => startGrowing({ ...wz.req, trustFingerprint: e.data.fingerprint }))));
+    const t = $('#trust');
+    t.hidden = false;
+    t.replaceChildren(el('p', '', 'First connection to this computer. Check its key fingerprint matches, then continue:'), el('code', '', e.data.fingerprint),
+      actionsRow(wbtn('Cancel', 'ghost', () => $('#wizard').close()), wbtn('Trust and continue', 'primary', () => grow({ ...wz.req, trustFingerprint: e.data.fingerprint }))));
     return;
   }
   if (e.step === 'done') {
     if (e.level === 'ok') {
-      for (const s of document.querySelectorAll('#growing .gstep')) if (!/ok|warn/.test(s.className)) markStep(s, 'ok');
-      growFinished(true);
-      reloadTargets(e.data);
-    } else {
-      growFinished(false, friendlyError(e.text));
-    }
+      for (const s of document.querySelectorAll('#steps .step')) if (!/ok|warn/.test(s.className)) markStep(s, 'ok');
+      finish(true);
+      reloadTargets();
+    } else finish(false, friendly(e.text));
     return;
   }
   if (e.step === 'log') return;
-  const s = document.querySelector(`#growing .gstep[data-step="${e.step}"]`);
+  const s = document.querySelector(`#steps .step[data-step="${e.step}"]`);
   if (!s) return;
   let prev = s.previousElementSibling;
   while (prev) { if (!/ok|warn|error/.test(prev.className)) markStep(prev, 'ok'); prev = prev.previousElementSibling; }
   const cls = e.level === 'info' ? 'active' : e.level === 'ok' ? 'ok' : e.level;
-  markStep(s, cls, stepDetail(e));
+  markStep(s, cls, e.level === 'warn' ? e.text.replace(/`/g, '') : '');
 });
 
-async function reloadTargets(target) {
+async function reloadTargets() {
   state.targets = (await App.Targets()) || [];
-  const i = state.targets.findIndex((t) => t.context === target.context && t.namespace === target.namespace);
-  selectTarget(i >= 0 ? i : 0);
+  state.health = {};
+  refresh();
 }
-
-$('#add-machine').onclick = stepWhere;
-$('#docs').onclick = (e) => { e.preventDefault(); BrowserOpenURL('https://tinysystems.io/docs/'); };
+$('#add-garden').onclick = stepWhere;
 
 /* Start */
 
 async function start() {
-  $('#brand-mark').append(plant('grow', 30, { pot: true }));
-  $('#version').textContent = await App.Version();
+  $('#rail-mark').append(mark(18));
+  $('#rail-mark').title = `Tiny Systems ${await App.Version()}`;
+  setView('helpers');
   state.targets = (await App.Targets()) || [];
-  if (state.targets.length) selectTarget(0);
+  if (!state.targets.length) { renderPane(); stepWhere(); return; }
+  await refresh();
   const pick = await App.DemoSelect();
-  if (pick) { state.selected = pick; }
-  else { renderGarden(); stepWhere(); }
+  if (pick === 'gardens') { setView('gardens'); setInterval(refresh, REFRESH_MS); return; }
+  const first = allRows().find((r) => (pick ? r.name === pick : r.kind === 'ask')) || allRows()[0];
+  if (first) select(first.key, first.name);
   setInterval(refresh, REFRESH_MS);
 }
 

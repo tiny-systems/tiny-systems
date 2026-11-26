@@ -9,6 +9,8 @@ export function CloseTerminal(arg1:string):Promise<void>;
 
 export function Contexts():Promise<Array<string>>;
 
+export function Conversation(arg1:main.Target,arg2:string):Promise<Array<main.Message>>;
+
 export function CopyCredentials(arg1:main.Target,arg2:main.Target):Promise<void>;
 
 export function Delete(arg1:main.Target,arg2:string):Promise<void>;
@@ -16,6 +18,8 @@ export function Delete(arg1:main.Target,arg2:string):Promise<void>;
 export function DemoSelect():Promise<string>;
 
 export function Fleet(arg1:main.Target):Promise<main.Fleet>;
+
+export function Gardens():Promise<Array<main.Garden>>;
 
 export function Health(arg1:main.Target):Promise<fleet.Health>;
 
@@ -34,6 +38,8 @@ export function OpenTerminal(arg1:main.Target,arg2:string,arg3:number,arg4:numbe
 export function Pause(arg1:main.Target,arg2:string):Promise<void>;
 
 export function Resume(arg1:main.Target,arg2:string):Promise<void>;
+
+export function SendMessage(arg1:main.Target,arg2:string,arg3:string):Promise<void>;
 
 export function StartVM(arg1:string):Promise<void>;
 

@@ -33,3 +33,30 @@ func demoFleet() Fleet {
 
 // DemoSelect is the helper the demo opens with, if any.
 func (a *App) DemoSelect() string { return strings.TrimSpace(os.Getenv("TINY_DEMO_SELECT")) }
+
+func demoConversation(session string) []Message {
+	now := time.Now().UTC()
+	at := func(d time.Duration) string { return now.Add(-d).Format(time.RFC3339) }
+	switch session {
+	case "s-fern":
+		return []Message{
+			{From: "you", Text: "Fix the checkout test that fails on Mondays", At: at(40 * time.Minute)},
+			{From: "helper", Text: "Found it: the test builds a date from the local clock and assumes a weekday. On Mondays the 'previous business day' wraps to Friday and the expected total is off by one.", At: at(31 * time.Minute)},
+			{From: "helper", Question: "q-fern", Open: true, Options: []string{"Pin to UTC", "Every time zone"},
+				Text: "The test depends on the local time zone. Should I pin it to UTC, or make the test run in every time zone?", At: at(6 * time.Minute)},
+		}
+	case "s-basil":
+		return []Message{
+			{From: "you", Text: "Write the welcome email for new customers. Friendly, short, and link the getting-started guide.", At: at(12 * time.Minute)},
+			{From: "helper", Question: "q-b1", Text: "Should it come from the team or from you personally?", Options: []string{"From the team", "From me"}, Answer: "From the team", At: at(9 * time.Minute)},
+			{From: "you", Text: "Mention the free onboarding call too.", At: at(4 * time.Minute)},
+		}
+	default:
+		for _, r := range demoFleet().Rows {
+			if r.Name == session {
+				return []Message{{From: "you", Text: r.Title, At: at(time.Hour)}}
+			}
+		}
+		return nil
+	}
+}
