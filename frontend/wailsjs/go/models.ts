@@ -1,3 +1,66 @@
+export namespace fleet {
+	
+	export class NodeHealth {
+	    name: string;
+	    ready: boolean;
+	    diskPressure: boolean;
+	    memoryPressure: boolean;
+	    diskFreeGB: number;
+	    diskTotalGB: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new NodeHealth(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.ready = source["ready"];
+	        this.diskPressure = source["diskPressure"];
+	        this.memoryPressure = source["memoryPressure"];
+	        this.diskFreeGB = source["diskFreeGB"];
+	        this.diskTotalGB = source["diskTotalGB"];
+	    }
+	}
+	export class Health {
+	    nodes: NodeHealth[];
+	    runtimeMissing?: string[];
+	    signIn: string;
+	    codex: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new Health(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.nodes = this.convertValues(source["nodes"], NodeHealth);
+	        this.runtimeMissing = source["runtimeMissing"];
+	        this.signIn = source["signIn"];
+	        this.codex = source["codex"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+
+}
+
 export namespace main {
 	
 	export class Asking {
@@ -152,6 +215,7 @@ export namespace main {
 	    sudoPassword: string;
 	    namespace: string;
 	    gvisor: boolean;
+	    apiPort: number;
 	    trustFingerprint: string;
 	    copyFrom?: Target;
 	
@@ -170,8 +234,97 @@ export namespace main {
 	        this.sudoPassword = source["sudoPassword"];
 	        this.namespace = source["namespace"];
 	        this.gvisor = source["gvisor"];
+	        this.apiPort = source["apiPort"];
 	        this.trustFingerprint = source["trustFingerprint"];
 	        this.copyFrom = this.convertValues(source["copyFrom"], Target);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class LocalInstallRequest {
+	    name: string;
+	    cpus: number;
+	    memoryGB: number;
+	    diskGB: number;
+	    gvisor: boolean;
+	    copyFrom?: Target;
+	
+	    static createFrom(source: any = {}) {
+	        return new LocalInstallRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.cpus = source["cpus"];
+	        this.memoryGB = source["memoryGB"];
+	        this.diskGB = source["diskGB"];
+	        this.gvisor = source["gvisor"];
+	        this.copyFrom = this.convertValues(source["copyFrom"], Target);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	export class VM {
+	    name: string;
+	    status: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new VM(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.status = source["status"];
+	    }
+	}
+	export class LocalStatus {
+	    lima: boolean;
+	    vms: VM[];
+	    hint?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new LocalStatus(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.lima = source["lima"];
+	        this.vms = this.convertValues(source["vms"], VM);
+	        this.hint = source["hint"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -212,6 +365,7 @@ export namespace main {
 	        this.image = source["image"];
 	    }
 	}
+	
 	
 
 }

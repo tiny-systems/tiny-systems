@@ -37,11 +37,15 @@ CLI. It reads `~/.kube/config`, plus any files named in `KUBECONFIG`.
   before anything runs; a sudo password, when one is needed, is used once and
   never stored. Running it again on the same machine keeps what's there.
 
-## Coming
-
-- **Install on this Mac**, in a small Linux VM.
-- **Maintenance:** runtime upgrades, expiring tokens, a disk filling up before
-  pods stop scheduling, and notifications when an agent needs you.
+- **Or on this Mac:** the same installer, onto an Ubuntu VM it creates with
+  [Lima](https://lima-vm.io) (`brew install lima`). Several can run side by
+  side; each gets its own Kubernetes API port. Lima VMs don't start with the
+  Mac, so a stopped one shows a **Start VM** button.
+- **Health, with the fix beside it:** a node out of disk (Kubernetes stops
+  starting pods) or under 20% free, memory pressure, a runtime older than the
+  app (**Upgrade runtime**), and no agent credentials (**Copy** from another
+  fleet).
+- **Notifications** when an agent starts waiting for you.
 
 ## Testing the installer
 

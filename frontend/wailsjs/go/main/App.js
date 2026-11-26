@@ -14,6 +14,10 @@ export function Contexts() {
   return window['go']['main']['App']['Contexts']();
 }
 
+export function CopyCredentials(arg1, arg2) {
+  return window['go']['main']['App']['CopyCredentials'](arg1, arg2);
+}
+
 export function Delete(arg1, arg2) {
   return window['go']['main']['App']['Delete'](arg1, arg2);
 }
@@ -22,12 +26,28 @@ export function Fleet(arg1) {
   return window['go']['main']['App']['Fleet'](arg1);
 }
 
+export function Health(arg1) {
+  return window['go']['main']['App']['Health'](arg1);
+}
+
 export function Install(arg1) {
   return window['go']['main']['App']['Install'](arg1);
 }
 
+export function InstallLocal(arg1) {
+  return window['go']['main']['App']['InstallLocal'](arg1);
+}
+
+export function Local() {
+  return window['go']['main']['App']['Local']();
+}
+
 export function NewSession(arg1, arg2) {
   return window['go']['main']['App']['NewSession'](arg1, arg2);
+}
+
+export function Notify(arg1, arg2) {
+  return window['go']['main']['App']['Notify'](arg1, arg2);
 }
 
 export function OpenTerminal(arg1, arg2, arg3, arg4) {
@@ -42,6 +62,14 @@ export function Resume(arg1, arg2) {
   return window['go']['main']['App']['Resume'](arg1, arg2);
 }
 
+export function StartVM(arg1) {
+  return window['go']['main']['App']['StartVM'](arg1);
+}
+
+export function StopVM(arg1) {
+  return window['go']['main']['App']['StopVM'](arg1);
+}
+
 export function Targets() {
   return window['go']['main']['App']['Targets']();
 }
@@ -52,6 +80,10 @@ export function TermInput(arg1, arg2) {
 
 export function TermResize(arg1, arg2, arg3) {
   return window['go']['main']['App']['TermResize'](arg1, arg2, arg3);
+}
+
+export function UpgradeRuntime(arg1) {
+  return window['go']['main']['App']['UpgradeRuntime'](arg1);
 }
 
 export function Version() {

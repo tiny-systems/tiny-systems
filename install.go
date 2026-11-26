@@ -40,6 +40,9 @@ type InstallRequest struct {
 	SudoPassword string `json:"sudoPassword"`
 	Namespace    string `json:"namespace"`
 	GVisor       bool   `json:"gvisor"`
+	// APIPort is where k3s serves the Kubernetes API; 6443 unless several
+	// machines share one address (local VMs all forward to localhost).
+	APIPort int `json:"apiPort"`
 	// TrustFingerprint is the host key fingerprint the user confirmed for a
 	// host not yet in known_hosts.
 	TrustFingerprint string `json:"trustFingerprint"`
@@ -82,6 +85,9 @@ func (a *App) Install(req InstallRequest) error {
 	}
 	if req.Namespace == "" {
 		req.Namespace = "tiny"
+	}
+	if req.APIPort == 0 {
+		req.APIPort = 6443
 	}
 	go func() {
 		emit := func(e InstallEvent) { runtime.EventsEmit(a.ctx, "install:event", e) }
@@ -135,7 +141,7 @@ func (a *App) install(ctx context.Context, req InstallRequest, emit func(Install
 	} else {
 		say("k3s", "info", "installing k3s (a couple of minutes)")
 		cmd := fmt.Sprintf("curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC=%s sh -",
-			shellQuote("server --write-kubeconfig-mode 600 --tls-san "+req.Host))
+			shellQuote(fmt.Sprintf("server --write-kubeconfig-mode 600 --tls-san %s --https-listen-port %d", req.Host, apiPort(req))))
 		if err := r.stream(cmd, true); err != nil {
 			return nil, fmt.Errorf("k3s install failed: %w", err)
 		}
@@ -157,7 +163,7 @@ func (a *App) install(ctx context.Context, req InstallRequest, emit func(Install
 	if err != nil {
 		return nil, fmt.Errorf("read k3s kubeconfig: %w", err)
 	}
-	kubeconfigPath, backup, err := mergeKubeconfig([]byte(raw), req.Name, req.Host)
+	kubeconfigPath, backup, err := mergeKubeconfig([]byte(raw), req.Name, req.Host, apiPort(req))
 	if err != nil {
 		return nil, err
 	}
@@ -516,12 +522,12 @@ func kernelBefore(release string, major, minor int) bool {
 // pointing at host instead of 127.0.0.1, and returns that file's path and
 // where the previous version was copied. An existing context of that name
 // is refused rather than overwritten, unless it's the same machine.
-func mergeKubeconfig(k3s []byte, name, host string) (path, backup string, err error) {
+func mergeKubeconfig(k3s []byte, name, host string, port int) (path, backup string, err error) {
 	src, err := clientcmd.Load(k3s)
 	if err != nil {
 		return "", "", fmt.Errorf("parse k3s kubeconfig: %w", err)
 	}
-	cluster, user, err := safeK3sEntries(src, host)
+	cluster, user, err := safeK3sEntries(src, host, port)
 	if err != nil {
 		return "", "", err
 	}
@@ -563,7 +569,7 @@ func mergeKubeconfig(k3s []byte, name, host string) (path, backup string, err er
 // (exec, auth-provider), a proxy, or skip TLS checks; copying it as is
 // would let a compromised machine run code on this one. The server is
 // set here, never taken from the file.
-func safeK3sEntries(src *clientcmdapi.Config, host string) (*clientcmdapi.Cluster, *clientcmdapi.AuthInfo, error) {
+func safeK3sEntries(src *clientcmdapi.Config, host string, port int) (*clientcmdapi.Cluster, *clientcmdapi.AuthInfo, error) {
 	c, u := src.Clusters["default"], src.AuthInfos["default"]
 	if c == nil || u == nil {
 		return nil, nil, errors.New("unexpected k3s kubeconfig: no default cluster or user")
@@ -578,7 +584,7 @@ func safeK3sEntries(src *clientcmdapi.Config, host string) (*clientcmdapi.Cluste
 		return nil, nil, errors.New("the machine's kubeconfig has no client certificate or token")
 	}
 	cluster := &clientcmdapi.Cluster{
-		Server:                   "https://" + net.JoinHostPort(host, "6443"),
+		Server:                   "https://" + net.JoinHostPort(host, strconv.Itoa(port)),
 		CertificateAuthorityData: c.CertificateAuthorityData,
 	}
 	user := &clientcmdapi.AuthInfo{
@@ -635,6 +641,13 @@ func (a *App) copyCredentials(ctx context.Context, from, to Target) error {
 		return err
 	}
 	return fleet.CopyAgentCredentials(ctx, src, dst)
+}
+
+func apiPort(req InstallRequest) int {
+	if req.APIPort == 0 {
+		return 6443
+	}
+	return req.APIPort
 }
 
 func shellQuote(s string) string { return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'" }

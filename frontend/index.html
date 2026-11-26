@@ -43,6 +43,7 @@
       </header>
 
       <div id="fleet-error" class="error" hidden></div>
+      <div id="health" class="health" hidden></div>
       <section id="loose" class="loose" hidden></section>
 
       <div class="split" id="split">
@@ -102,18 +103,28 @@
   <dialog id="install-dialog" class="dialog wide">
     <form id="install-form" method="dialog">
       <h2>Add a machine</h2>
-      <p class="hint">A Linux computer you can SSH into. Tiny Systems installs k3s, optionally gVisor, and tiny's runtime, and adds it as a greenhouse. Your SSH agent and keys in ~/.ssh are used.</p>
+      <div class="where" role="radiogroup" aria-label="Where">
+        <label><input type="radio" name="where" value="mac" checked> This Mac</label>
+        <label><input type="radio" name="where" value="remote"> Another computer</label>
+      </div>
+      <p class="hint" data-where="mac">A small Ubuntu VM on this Mac, made with Lima. It runs while the Mac is awake; start it again from the sidebar after a restart. <span id="lima-hint"></span></p>
+      <p class="hint" data-where="remote">A Linux computer you can SSH into. Tiny Systems installs k3s, optionally gVisor, and tiny's runtime, and adds it as a greenhouse. Your SSH agent and keys in ~/.ssh are used.</p>
       <div class="row2">
         <label>Name <input name="name" required pattern="[a-z0-9]([-a-z0-9]*[a-z0-9])?" placeholder="garage-box"></label>
         <label>Namespace <input name="namespace" placeholder="tiny"></label>
       </div>
-      <div class="row3">
-        <label>Address <input name="host" required placeholder="192.168.1.20 or box.local"></label>
-        <label>SSH user <input name="user" required placeholder="ubuntu"></label>
+      <div class="row3" data-where="mac">
+        <label>CPUs <input name="cpus" type="number" value="2" min="1" max="16"></label>
+        <label>Memory GB <input name="memoryGB" type="number" value="4" min="2" max="64"></label>
+        <label>Disk GB <input name="diskGB" type="number" value="40" min="20" max="500"></label>
+      </div>
+      <div class="row3" data-where="remote">
+        <label>Address <input name="host" placeholder="192.168.1.20 or box.local"></label>
+        <label>SSH user <input name="user" placeholder="ubuntu"></label>
         <label>Port <input name="port" type="number" value="22" min="1" max="65535"></label>
       </div>
-      <label>Key file <input name="keyFile" placeholder="optional, e.g. ~/.ssh/garage"></label>
-      <label>Sudo password <input name="sudoPassword" type="password" autocomplete="off" placeholder="only if sudo asks for one; used once, never stored"></label>
+      <label data-where="remote">Key file <input name="keyFile" placeholder="optional, e.g. ~/.ssh/garage"></label>
+      <label data-where="remote">Sudo password <input name="sudoPassword" type="password" autocomplete="off" placeholder="only if sudo asks for one; used once, never stored"></label>
       <label class="check"><input type="checkbox" name="gvisor" checked> Install gVisor, so sessions can run with --runtime-class gvisor</label>
       <label>Agent credentials <select name="copyFrom" id="copy-from"></select></label>
       <div class="dialog-actions">

@@ -221,6 +221,8 @@ async function refresh() {
   renderRail();
   renderFleet();
   updateDockBadge();
+  notifyChanges();
+  loadHealth();
 }
 
 function updateDockBadge() {
@@ -393,6 +395,7 @@ start();
 /* Add a machine */
 
 const STEPS = [
+  ['vm', 'Create the VM'],
   ['connect', 'Connect over SSH'],
   ['preflight', 'Check the machine'],
   ['k3s', 'Install k3s'],
@@ -410,13 +413,31 @@ $('#add-machine').onclick = () => {
     ...state.targets.map((t, i) => new Option(`Copy from ${t.name}`, String(i))));
   if (state.targets.length) sel.value = String(state.current ?? 0);
   $('#install-form').reset();
+  showWhere();
+  App.Local().then((st) => {
+    $('#lima-hint').textContent = st.lima ? '' : `Lima isn't installed yet: ${st.hint}`;
+  });
   $('#install-dialog').showModal();
 };
 $('#install-cancel').onclick = () => $('#install-dialog').close();
 
+function showWhere() {
+  const where = $('#install-form').querySelector('input[name="where"]:checked').value;
+  for (const el of document.querySelectorAll('#install-form [data-where]')) el.hidden = el.dataset.where !== where;
+  for (const n of ['host', 'user']) $('#install-form').elements[n].required = where === 'remote';
+}
+for (const r of document.querySelectorAll('#install-form input[name="where"]')) r.onchange = showWhere;
+
 $('#install-form').onsubmit = (e) => {
   e.preventDefault();
   const d = Object.fromEntries(new FormData(e.target));
+  const copyFrom = d.copyFrom === '' ? null : state.targets[Number(d.copyFrom)];
+  if (d.where === 'mac') {
+    $('#install-dialog').close();
+    startInstall({ name: d.name.trim(), gvisor: d.gvisor === 'on', local: true,
+      cpus: Number(d.cpus), memoryGB: Number(d.memoryGB), diskGB: Number(d.diskGB), copyFrom });
+    return;
+  }
   const req = {
     name: d.name.trim(), host: d.host.trim(), user: d.user.trim(), port: Number(d.port) || 22,
     keyFile: d.keyFile.trim(), sudoPassword: d.sudoPassword, namespace: d.namespace.trim() || 'tiny',
@@ -429,7 +450,7 @@ $('#install-form').onsubmit = (e) => {
 
 function startInstall(req) {
   lastInstall = req;
-  const steps = STEPS.filter(([id]) => id !== 'gvisor' || req.gvisor);
+  const steps = STEPS.filter(([id]) => (id !== 'gvisor' || req.gvisor) && (id !== 'vm' || req.local));
   $('#progress-title').textContent = `Setting up ${req.name}`;
   $('#steps').replaceChildren(...steps.map(([id, label]) => {
     const li = document.createElement('li');
@@ -447,7 +468,10 @@ function startInstall(req) {
   $('#hostkey').hidden = true;
   $('#progress-close').disabled = true;
   if (!$('#progress-dialog').open) $('#progress-dialog').showModal();
-  App.Install(req).catch((e) => finish(false, String(e)));
+  const run = req.local
+    ? App.InstallLocal({ name: req.name, cpus: req.cpus, memoryGB: req.memoryGB, diskGB: req.diskGB, gvisor: req.gvisor, copyFrom: req.copyFrom })
+    : App.Install(req);
+  run.catch((e) => finish(false, String(e)));
 }
 
 function setStep(id, cls, text) {
@@ -511,4 +535,106 @@ async function reloadTargets(target) {
   state.targets = (await App.Targets()) || [];
   const i = state.targets.findIndex((t) => t.context === target.context && t.namespace === target.namespace);
   selectTarget(i >= 0 ? i : 0);
+}
+
+
+/* Health: what quietly breaks a fleet, with the fix next to it */
+
+const healthCache = {};
+
+async function loadHealth(force = false) {
+  const t = cur();
+  if (!t) return;
+  const key = keyOf(t);
+  const cached = healthCache[key];
+  if (!force && cached && Date.now() - cached.at < 30000) { renderHealth(cached.h); return; }
+  try {
+    const h = await App.Health(t);
+    healthCache[key] = { h, at: Date.now() };
+    if (keyOf(cur()) === key) renderHealth(h);
+  } catch (e) {
+    healthCache[key] = { h: null, at: Date.now() };
+    if (keyOf(cur()) === key) renderHealth(null);
+  }
+}
+
+function healthItem(level, text, ...controls) {
+  const el = document.createElement('div');
+  el.className = `item ${level}`;
+  const span = document.createElement('span');
+  span.className = 'txt';
+  span.textContent = text;
+  el.append(span, ...controls);
+  return el;
+}
+
+function button(label, fn) {
+  const b = document.createElement('button');
+  b.className = 'btn small';
+  b.textContent = label;
+  b.onclick = async () => {
+    b.disabled = true;
+    try { await fn(); } catch (e) { toast(String(e), true); }
+    b.disabled = false;
+  };
+  return b;
+}
+
+async function renderHealth(h) {
+  const box = $('#health');
+  const t = cur();
+  const items = [];
+  const f = state.fleet;
+  // An unreachable fleet that is one of this Mac's VMs is usually just stopped.
+  if (f && f.error) {
+    const st = await App.Local();
+    const vm = (st.vms || []).find((v) => v.name === t.name || v.name === t.context);
+    if (vm && vm.status !== 'Running') {
+      items.push(healthItem('warn', `This greenhouse is a VM on this Mac, and it's ${vm.status.toLowerCase()}.`,
+        button('Start VM', async () => { toast('starting the VM…'); await App.StartVM(vm.name); toast('VM running'); refresh(); })));
+    }
+  }
+  if (h) {
+    for (const n of h.nodes || []) {
+      if (n.diskPressure) {
+        items.push(healthItem('bad', `${n.name} is out of disk: Kubernetes has stopped starting new pods there. Free space on the machine.`));
+      } else if (n.diskTotalGB > 0 && n.diskFreeGB / n.diskTotalGB < 0.2) {
+        items.push(healthItem('warn', `${n.name} has ${n.diskFreeGB.toFixed(0)} GB free of ${n.diskTotalGB.toFixed(0)} GB. Below 15% Kubernetes stops starting pods.`));
+      }
+      if (n.memoryPressure) items.push(healthItem('warn', `${n.name} is short of memory.`));
+      if (!n.ready) items.push(healthItem('bad', `${n.name} isn't ready.`));
+    }
+    if ((h.runtimeMissing || []).length) {
+      items.push(healthItem('warn', `tiny's runtime here is older than this app: ${h.runtimeMissing.join(', ')} would be dropped from new sessions.`,
+        button('Upgrade runtime', async () => { await App.UpgradeRuntime(t); toast('runtime upgraded'); loadHealth(true); })));
+    }
+    if (h.signIn === 'none') {
+      const sel = document.createElement('select');
+      const others = state.targets.filter((x) => keyOf(x) !== keyOf(t));
+      for (const o of others) sel.append(new Option(o.name, keyOf(o)));
+      const controls = others.length ? [sel, button('Copy', async () => {
+        const from = others.find((o) => keyOf(o) === sel.value);
+        await App.CopyCredentials(from, t);
+        toast(`credentials copied from ${from.name}`);
+        loadHealth(true);
+      })] : [];
+      items.push(healthItem('warn', `No agent credentials here, so sessions can't sign in.${others.length ? ' Copy them from:' : ' Run tiny setup.'}`, ...controls));
+    }
+  }
+  box.hidden = !items.length;
+  box.replaceChildren(...items);
+}
+
+/* Notifications: when an agent starts waiting for you */
+
+const lastNeeds = {};
+function notifyChanges() {
+  for (const t of state.targets) {
+    const k = keyOf(t);
+    const now = state.summaries[k]?.needsYou ?? 0;
+    if (lastNeeds[k] !== undefined && now > lastNeeds[k]) {
+      App.Notify('Tiny Systems', `${t.name}: ${now} ${now === 1 ? 'agent is' : 'agents are'} waiting for you`);
+    }
+    lastNeeds[k] = now;
+  }
 }

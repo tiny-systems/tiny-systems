@@ -160,8 +160,8 @@ github.com/stretchr/objx v0.5.2/go.mod h1:FRsXN1f5AsAjCGJKqEizvkpNtU+EGNCLh3NxZ/
 github.com/stretchr/testify v1.3.0/go.mod h1:M5WIy9Dh21IEIfnGCwXGc5bZfKNJtfHm1UVUgZn+9EI=
 github.com/stretchr/testify v1.11.1 h1:7s2iGBzp5EwR7/aIZr8ao5+dra3wiQyKjjFuvgVKu7U=
 github.com/stretchr/testify v1.11.1/go.mod h1:wZwfW3scLgRK+23gO65QZefKpKQRnfz6sD981Nm4B6U=
-github.com/tiny-systems/tiny v0.17.1-0.20261126153128-c3386bcaabba h1:0N5Z4zrVPKECix4nbqiLoctquA/f+jTxL5U8giV8xkM=
-github.com/tiny-systems/tiny v0.17.1-0.20261126153128-c3386bcaabba/go.mod h1:TFfK5Hev+oEwOR2VDOTCySc+ZGtAsUO24x2g6dMKtVM=
+github.com/tiny-systems/tiny v0.17.1-0.20261126154659-2beca6d16da9 h1:jEpPNWw9CNH1gGpZyuLBgrrFjOhceyrJaV894gjReIc=
+github.com/tiny-systems/tiny v0.17.1-0.20261126154659-2beca6d16da9/go.mod h1:TFfK5Hev+oEwOR2VDOTCySc+ZGtAsUO24x2g6dMKtVM=
 github.com/tkrajina/go-reflector v0.5.8 h1:yPADHrwmUbMq4RGEyaOUpz2H90sRsETNVpjzo3DLVQQ=
 github.com/tkrajina/go-reflector v0.5.8/go.mod h1:ECbqLgccecY5kPmPmXg1MrHW585yMcDkVl6IvJe64T4=
 github.com/valyala/bytebufferpool v1.0.0 h1:GqA5TC/0021Y/b9FG4Oi9Mr3q7XYx6KllzawFIhcdPw=

@@ -26,7 +26,7 @@ func TestSafeK3sEntries(t *testing.T) {
 			Username: "u", Password: "p", TokenFile: "/etc/shadow"}
 		return c
 	}
-	cl, u, err := safeK3sEntries(good(), "192.168.1.20")
+	cl, u, err := safeK3sEntries(good(), "192.168.1.20", 6443)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -36,18 +36,18 @@ func TestSafeK3sEntries(t *testing.T) {
 	if u.Username != "" || u.Password != "" || u.TokenFile != "" || string(u.ClientCertificateData) != "crt" {
 		t.Fatalf("user %+v", u)
 	}
-	if cl, _, _ := safeK3sEntries(good(), "fe80::1"); cl.Server != "https://[fe80::1]:6443" {
+	if cl, _, _ := safeK3sEntries(good(), "fe80::1", 6444); cl.Server != "https://[fe80::1]:6444" {
 		t.Fatalf("ipv6 server %s", cl.Server)
 	}
 
 	withExec := good()
 	withExec.AuthInfos["default"].Exec = &clientcmdapi.ExecConfig{Command: "/bin/sh"}
-	if _, _, err := safeK3sEntries(withExec, "h"); err == nil {
+	if _, _, err := safeK3sEntries(withExec, "h", 6443); err == nil {
 		t.Fatal("an exec credential plugin must be refused")
 	}
 	noCA := good()
 	noCA.Clusters["default"].CertificateAuthorityData = nil
-	if _, _, err := safeK3sEntries(noCA, "h"); err == nil {
+	if _, _, err := safeK3sEntries(noCA, "h", 6443); err == nil {
 		t.Fatal("a cluster without a CA must be refused")
 	}
 }
