@@ -3,8 +3,9 @@ module github.com/tiny-systems/tiny-systems
 go 1.26.0
 
 require (
-	github.com/tiny-systems/tiny v0.17.1-0.20261126152319-49b122ca3aa9
+	github.com/tiny-systems/tiny v0.17.1-0.20261126153128-c3386bcaabba
 	github.com/wailsapp/wails/v2 v2.11.0
+	golang.org/x/crypto v0.59.0
 	k8s.io/client-go v0.36.0
 )
 
@@ -48,8 +49,8 @@ require (
 	go.yaml.in/yaml/v2 v2.4.3 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect
-	golang.org/x/sync v0.22.0 // indirect
-	golang.org/x/term v0.45.0 // indirect
+	golang.org/x/sync v0.25.0 // indirect
+	golang.org/x/term v0.48.0 // indirect
 	golang.org/x/time v0.15.0 // indirect
 	google.golang.org/protobuf v1.36.12-0.20260120151049-f2248ac996af // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
@@ -91,10 +92,9 @@ require (
 	github.com/valyala/fasttemplate v1.2.2 // indirect
 	github.com/wailsapp/go-webview2 v1.0.22 // indirect
 	github.com/wailsapp/mimetype v1.4.1 // indirect
-	golang.org/x/crypto v0.55.0 // indirect
-	golang.org/x/net v0.57.0 // indirect
-	golang.org/x/sys v0.47.0 // indirect
-	golang.org/x/text v0.41.0 // indirect
+	golang.org/x/net v0.62.0 // indirect
+	golang.org/x/sys v0.50.0 // indirect
+	golang.org/x/text v0.44.0 // indirect
 )
 
 // replace github.com/wailsapp/wails/v2 v2.11.0 => /Users/mtrofimenko/go/pkg/mod

@@ -142,6 +142,56 @@ export namespace main {
 		    return a;
 		}
 	}
+	export class InstallRequest {
+	    name: string;
+	    host: string;
+	    port: number;
+	    user: string;
+	    keyFile: string;
+	    password: string;
+	    sudoPassword: string;
+	    namespace: string;
+	    gvisor: boolean;
+	    trustFingerprint: string;
+	    copyFrom?: Target;
+	
+	    static createFrom(source: any = {}) {
+	        return new InstallRequest(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.host = source["host"];
+	        this.port = source["port"];
+	        this.user = source["user"];
+	        this.keyFile = source["keyFile"];
+	        this.password = source["password"];
+	        this.sudoPassword = source["sudoPassword"];
+	        this.namespace = source["namespace"];
+	        this.gvisor = source["gvisor"];
+	        this.trustFingerprint = source["trustFingerprint"];
+	        this.copyFrom = this.convertValues(source["copyFrom"], Target);
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class NewSessionRequest {
 	    task: string;
 	    repo: string;

@@ -22,6 +22,10 @@ export function Fleet(arg1) {
   return window['go']['main']['App']['Fleet'](arg1);
 }
 
+export function Install(arg1) {
+  return window['go']['main']['App']['Install'](arg1);
+}
+
 export function NewSession(arg1, arg2) {
   return window['go']['main']['App']['NewSession'](arg1, arg2);
 }

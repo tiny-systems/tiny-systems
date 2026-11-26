@@ -389,3 +389,126 @@ async function start() {
 }
 
 start();
+
+/* Add a machine */
+
+const STEPS = [
+  ['connect', 'Connect over SSH'],
+  ['preflight', 'Check the machine'],
+  ['k3s', 'Install k3s'],
+  ['gvisor', 'Install gVisor'],
+  ['kubeconfig', 'Add it to your kubeconfig'],
+  ['runtime', 'Install tiny’s runtime'],
+  ['credentials', 'Agent credentials'],
+];
+
+let lastInstall = null;
+
+$('#add-machine').onclick = () => {
+  const sel = $('#copy-from');
+  sel.replaceChildren(new Option('Set up later with tiny setup', ''),
+    ...state.targets.map((t, i) => new Option(`Copy from ${t.name}`, String(i))));
+  if (state.targets.length) sel.value = String(state.current ?? 0);
+  $('#install-form').reset();
+  $('#install-dialog').showModal();
+};
+$('#install-cancel').onclick = () => $('#install-dialog').close();
+
+$('#install-form').onsubmit = (e) => {
+  e.preventDefault();
+  const d = Object.fromEntries(new FormData(e.target));
+  const req = {
+    name: d.name.trim(), host: d.host.trim(), user: d.user.trim(), port: Number(d.port) || 22,
+    keyFile: d.keyFile.trim(), sudoPassword: d.sudoPassword, namespace: d.namespace.trim() || 'tiny',
+    gvisor: d.gvisor === 'on', trustFingerprint: '',
+    copyFrom: d.copyFrom === '' ? null : state.targets[Number(d.copyFrom)],
+  };
+  $('#install-dialog').close();
+  startInstall(req);
+};
+
+function startInstall(req) {
+  lastInstall = req;
+  const steps = STEPS.filter(([id]) => id !== 'gvisor' || req.gvisor);
+  $('#progress-title').textContent = `Setting up ${req.name}`;
+  $('#steps').replaceChildren(...steps.map(([id, label]) => {
+    const li = document.createElement('li');
+    li.dataset.step = id;
+    li.append(plant('seed', 26));
+    const t = document.createElement('div');
+    t.className = 'stext';
+    t.textContent = label;
+    const det = document.createElement('div');
+    det.className = 'sdetail';
+    li.append(t, det);
+    return li;
+  }));
+  $('#install-log').textContent = '';
+  $('#hostkey').hidden = true;
+  $('#progress-close').disabled = true;
+  if (!$('#progress-dialog').open) $('#progress-dialog').showModal();
+  App.Install(req).catch((e) => finish(false, String(e)));
+}
+
+function setStep(id, cls, text) {
+  const li = $(`#steps li[data-step="${id}"]`);
+  if (!li) return;
+  // Steps before this one are done.
+  let prev = li.previousElementSibling;
+  while (prev) {
+    if (!['ok', 'warn', 'error'].includes(prev.className)) mark(prev, 'ok');
+    prev = prev.previousElementSibling;
+  }
+  mark(li, cls);
+  if (text) li.querySelector('.sdetail').textContent = text;
+}
+
+function mark(li, cls) {
+  li.className = cls;
+  const kind = { active: 'grow', ok: 'done', warn: 'ask', error: 'fail' }[cls] || 'seed';
+  li.firstChild.replaceWith(plant(kind, 26));
+}
+
+function finish(ok, text) {
+  $('#progress-close').disabled = false;
+  $('#progress-title').textContent = ok ? 'Ready' : 'Setup stopped';
+  if (!ok) {
+    const active = $('#steps li.active') || $('#steps li:not(.ok):not(.warn)');
+    if (active) mark(active, 'error');
+    if (active) active.querySelector('.sdetail').textContent = text;
+  }
+}
+
+EventsOn('install:event', (e) => {
+  const log = $('#install-log');
+  log.textContent += (e.level === 'log' ? '  ' : '• ') + e.text + '\n';
+  log.scrollTop = log.scrollHeight;
+  if (e.level === 'hostkey') {
+    $('#hostkey-fp').textContent = e.data.fingerprint;
+    $('#hostkey').hidden = false;
+    $('#hostkey-yes').onclick = () => startInstall({ ...lastInstall, trustFingerprint: e.data.fingerprint });
+    $('#hostkey-no').onclick = () => $('#progress-dialog').close();
+    return;
+  }
+  if (e.step === 'done') {
+    if (e.level === 'ok') {
+      for (const li of document.querySelectorAll('#steps li')) if (!['ok', 'warn'].includes(li.className)) mark(li, 'ok');
+      finish(true);
+      reloadTargets(e.data);
+    } else {
+      finish(false, e.text);
+    }
+    return;
+  }
+  if (e.step === 'log') return;
+  const cls = e.level === 'info' ? 'active' : e.level === 'ok' ? 'ok' : e.level;
+  setStep(e.step, cls, e.text);
+});
+
+$('#progress-close').onclick = () => $('#progress-dialog').close();
+
+async function reloadTargets(target) {
+  state.targets = (await App.Targets()) || [];
+  const i = state.targets.findIndex((t) => t.context === target.context && t.namespace === target.namespace);
+  selectTarget(i >= 0 ? i : 0);
+}

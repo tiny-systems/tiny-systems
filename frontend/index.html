@@ -23,6 +23,7 @@
       </div>
       <div class="label">Greenhouses</div>
       <nav id="fleets" class="fleets" aria-label="Fleets"></nav>
+      <button class="add-machine" id="add-machine">+ Add a machine</button>
       <div class="rail-foot">
         <span id="version"></span>
         <a href="#" id="docs">tinysystems.io</a>
@@ -96,6 +97,49 @@
         <button class="btn danger" value="ok" id="confirm-ok">Delete</button>
       </div>
     </form>
+  </dialog>
+
+  <dialog id="install-dialog" class="dialog wide">
+    <form id="install-form" method="dialog">
+      <h2>Add a machine</h2>
+      <p class="hint">A Linux computer you can SSH into. Tiny Systems installs k3s, optionally gVisor, and tiny's runtime, and adds it as a greenhouse. Your SSH agent and keys in ~/.ssh are used.</p>
+      <div class="row2">
+        <label>Name <input name="name" required pattern="[a-z0-9]([-a-z0-9]*[a-z0-9])?" placeholder="garage-box"></label>
+        <label>Namespace <input name="namespace" placeholder="tiny"></label>
+      </div>
+      <div class="row3">
+        <label>Address <input name="host" required placeholder="192.168.1.20 or box.local"></label>
+        <label>SSH user <input name="user" required placeholder="ubuntu"></label>
+        <label>Port <input name="port" type="number" value="22" min="1" max="65535"></label>
+      </div>
+      <label>Key file <input name="keyFile" placeholder="optional, e.g. ~/.ssh/garage"></label>
+      <label>Sudo password <input name="sudoPassword" type="password" autocomplete="off" placeholder="only if sudo asks for one; used once, never stored"></label>
+      <label class="check"><input type="checkbox" name="gvisor" checked> Install gVisor, so sessions can run with --runtime-class gvisor</label>
+      <label>Agent credentials <select name="copyFrom" id="copy-from"></select></label>
+      <div class="dialog-actions">
+        <button type="button" class="btn" id="install-cancel">Cancel</button>
+        <button type="submit" class="btn primary">Install</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="progress-dialog" class="dialog wide">
+    <div class="progress">
+      <h2 id="progress-title">Setting up</h2>
+      <ol class="steps" id="steps"></ol>
+      <div class="hostkey" id="hostkey" hidden>
+        <p>This computer's SSH key isn't in your known_hosts yet. Check that the fingerprint matches the machine before trusting it:</p>
+        <code id="hostkey-fp"></code>
+        <div class="dialog-actions">
+          <button class="btn" id="hostkey-no">Cancel</button>
+          <button class="btn primary" id="hostkey-yes">Trust and continue</button>
+        </div>
+      </div>
+      <pre class="log" id="install-log"></pre>
+      <div class="dialog-actions">
+        <button class="btn" id="progress-close" disabled>Close</button>
+      </div>
+    </div>
   </dialog>
 
   <div id="toast" class="toast" role="status" hidden></div>

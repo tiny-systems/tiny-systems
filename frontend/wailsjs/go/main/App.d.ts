@@ -12,6 +12,8 @@ export function Delete(arg1:main.Target,arg2:string):Promise<void>;
 
 export function Fleet(arg1:main.Target):Promise<main.Fleet>;
 
+export function Install(arg1:main.InstallRequest):Promise<void>;
+
 export function NewSession(arg1:main.Target,arg2:main.NewSessionRequest):Promise<string>;
 
 export function OpenTerminal(arg1:main.Target,arg2:string,arg3:number,arg4:number):Promise<string>;
