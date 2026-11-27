@@ -28,8 +28,9 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - name: Frontend
         run: |
+          (cd frontend && npm ci && npm run build)
           WEB_DEMO_OUT=frontend/web/demo.json go test -count=1 -run TestWebDemoData .
-          cd frontend && npm ci && npm run build && npm run build:web
+          cd frontend && npm run build:web
       - name: Vet
         run: go vet ./... && go vet -tags lima ./...
       - name: Test
