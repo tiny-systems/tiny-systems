@@ -7,7 +7,13 @@ holds your keys. This is the Mac app. The engine underneath is
 
 **[Download for macOS](https://github.com/tiny-systems/tiny-systems/releases/latest/download/Tiny-Systems.dmg)**
 (macOS 13 or later, Apple silicon or Intel). Open the disk image and drag
-Tiny Systems to Applications. More at [tinysystems.io](https://tinysystems.io).
+Tiny Systems to Applications. Or with Homebrew:
+
+```sh
+brew install --cask tiny-systems/tap/tiny-systems
+```
+
+More at [tinysystems.io](https://tinysystems.io).
 
 ## How it works
 
@@ -108,6 +114,12 @@ Releases: push a `v*` tag. `.github/workflows/release.yml` builds a
 universal app, signs it with the Developer ID certificate, notarizes and
 staples it, and attaches `Tiny-Systems-<version>.dmg`, `Tiny-Systems.dmg`
 and `SHA256SUMS` to the GitHub release. Signing secrets live on the
-`release` environment; `scripts/signing-secrets.sh` sets them up.
+`release` environment; `scripts/signing-secrets.sh` sets them up. The disk
+image is laid out by [dmgbuild](https://dmgbuild.readthedocs.io)
+(`scripts/dmg-settings.py`, pinned by hash in `scripts/dmg-requirements.txt`)
+over `build/darwin/dmg-background.tiff`, which `scripts/dmg-background.py`
+draws. After a release, update the cask in
+[tiny-systems/homebrew-tap](https://github.com/tiny-systems/homebrew-tap)
+(`Casks/tiny-systems.rb`: version and the dmg's sha256 from `SHA256SUMS`).
 
 MIT.

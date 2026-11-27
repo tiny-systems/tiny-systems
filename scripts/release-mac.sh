@@ -42,12 +42,13 @@ codesign --force --options runtime --timestamp \
   --sign "$SIGN_IDENTITY" "$app"
 codesign --verify --deep --strict --verbose=2 "$app"
 
-# A plain dmg: the app and a link to /Applications.
-stagedir=$(mktemp -d)
-cp -R "$app" "$stagedir/"
-ln -s /Applications "$stagedir/Applications"
+# The disk image: the app beside a link to /Applications, over the garden
+# background (scripts/dmg-background.py draws it; dmg-settings.py places the
+# icons). dmgbuild writes the window layout itself, no Finder scripting.
+DMGBUILD="${DMGBUILD:-dmgbuild}"
 rm -f "$dmg"
-hdiutil create -volname "Tiny Systems" -srcfolder "$stagedir" -fs HFS+ -format UDZO "$dmg"
+"$DMGBUILD" -s scripts/dmg-settings.py -D app="$app" \
+  -D background=build/darwin/dmg-background.tiff "Tiny Systems" "$dmg"
 codesign --force --timestamp --sign "$SIGN_IDENTITY" "$dmg"
 
 xcrun notarytool submit "$dmg" \

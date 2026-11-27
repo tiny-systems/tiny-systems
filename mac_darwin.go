@@ -40,16 +40,24 @@ static void tsSetBadge(const char *s) {
 
 // Open at login, through macOS's own Login Items (macOS 13+). Returns 0
 // when it worked; the error text goes into msg.
+// Info.plist already requires 13; the checks keep the compiler honest.
 static int tsLoginItem(int on, char *msg, int n) {
-	NSError *err = nil;
-	SMAppService *s = [SMAppService mainAppService];
-	BOOL ok = on ? [s registerAndReturnError:&err] : [s unregisterAndReturnError:&err];
-	if (!ok && err) { snprintf(msg, n, "%s", err.localizedDescription.UTF8String); return 1; }
-	return 0;
+	if (@available(macOS 13.0, *)) {
+		NSError *err = nil;
+		SMAppService *s = [SMAppService mainAppService];
+		BOOL ok = on ? [s registerAndReturnError:&err] : [s unregisterAndReturnError:&err];
+		if (!ok && err) { snprintf(msg, n, "%s", err.localizedDescription.UTF8String); return 1; }
+		return 0;
+	}
+	snprintf(msg, n, "open at login needs macOS 13 or later");
+	return 1;
 }
 
 static int tsLoginItemOn(void) {
-	return [SMAppService mainAppService].status == SMAppServiceStatusEnabled;
+	if (@available(macOS 13.0, *)) {
+		return [SMAppService mainAppService].status == SMAppServiceStatusEnabled;
+	}
+	return 0;
 }
 */
 import "C"
