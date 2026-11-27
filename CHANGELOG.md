@@ -1,6 +1,16 @@
 # Changelog
 
-## 0.1.0 (unreleased)
+## 0.1.1
+
+- Quieter, livelier motion: buttons press in, icons grow a touch on hover,
+  new helpers and messages rise in, a helper that changes state flashes
+  once, working text shimmers. Off when macOS Reduce motion is on.
+- Looping animations no longer restart every time the list refreshes.
+- The disk image opens on a garden background with an arrow to
+  Applications.
+- Homebrew: `brew install --cask tiny-systems/tap/tiny-systems`.
+
+## 0.1.0
 
 The first public release.
 
