@@ -689,7 +689,7 @@ function stepDetails(where) {
     const d = Object.fromEntries(new FormData(form));
     const copyFrom = d.copyFrom === '' ? null : state.targets[Number(d.copyFrom)];
     if (where === 'mac') {
-      if (!(await App.Local()).lima) { toast('Install Lima first: brew install lima', true); return; }
+      { const l = await App.Local(); if (!l.lima) { toast(l.hint || 'This Mac can’t run gardens yet.', true); return; } }
       grow({ local: true, name: slug(d.name), gvisor: !!d.gvisor, cpus: Number(d.cpus), memoryGB: Number(d.memoryGB), diskGB: Number(d.diskGB), copyFrom });
     } else {
       grow({ name: slug(d.name), host: d.host.trim(), user: d.user.trim(), port: Number(d.port) || 22, keyFile: (d.keyFile || '').trim(), sudoPassword: d.sudoPassword || '',

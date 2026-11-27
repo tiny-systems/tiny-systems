@@ -36,10 +36,10 @@ picked.
 
 ## Adding a garden
 
-**On this Mac:** the app creates an Ubuntu VM with [Lima](https://lima-vm.io)
-(`brew install lima` for now) and sets everything up inside it. Several can
-run side by side. Lima VMs don't start with the Mac, so a stopped one shows
-**Start VM**.
+**On this Mac:** the app creates an Ubuntu VM with [Lima](https://lima-vm.io),
+which comes inside the app, and sets everything up in it. No folders from
+your Mac are shared into the VM. Several can run side by side. VMs don't
+start with the Mac, so a stopped one shows **Start VM**.
 
 **On another computer:** give it a Linux computer's address and SSH access.
 The app checks the machine (warning when the disk is small), installs k3s
@@ -72,6 +72,11 @@ go install github.com/wailsapp/wails/v2/cmd/wails@v2.11.0
 wails build -ldflags "-X main.version=0.1.0"
 open "build/bin/Tiny Systems.app"
 ```
+
+A development build uses a Homebrew Lima (`brew install lima`); release
+builds bundle Lima with `scripts/fetch-lima.sh`, pinned by checksum, and
+sign `limactl` separately with the virtualization entitlement
+(`build/darwin/lima.entitlements`).
 
 `wails dev` runs it with live reload. `TINY_DEMO=1` adds a demo garden with
 a helper in every state, for working on the look without a cluster

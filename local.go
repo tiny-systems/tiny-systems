@@ -46,9 +46,17 @@ type LocalStatus struct {
 	Hint string `json:"hint,omitempty"`
 }
 
-// limactl finds Lima's CLI. An app opened from Finder doesn't get the
-// shell's PATH, so Homebrew's folders are tried too.
+// limactl finds Lima's CLI: the copy inside the app first (a release
+// bundles one, see scripts/fetch-lima.sh), then a Homebrew install for
+// development builds. An app opened from Finder doesn't get the shell's
+// PATH, so Homebrew's folders are tried by name.
 func limactl() (string, error) {
+	if exe, err := os.Executable(); err == nil {
+		p := filepath.Join(filepath.Dir(exe), "..", "Resources", "lima", "bin", "limactl")
+		if _, err := os.Stat(p); err == nil {
+			return filepath.Clean(p), nil
+		}
+	}
 	if p, err := exec.LookPath("limactl"); err == nil {
 		return p, nil
 	}
@@ -57,7 +65,7 @@ func limactl() (string, error) {
 			return p, nil
 		}
 	}
-	return "", errors.New("lima isn't installed: run `brew install lima`, then try again")
+	return "", errors.New("this copy of Tiny Systems is missing its VM tools: download it again from tinysystems.io (or, for a development build, brew install lima)")
 }
 
 // Local reports Lima and the app's VMs.
@@ -144,6 +152,9 @@ func (a *App) installLocal(ctx context.Context, bin string, req LocalInstallRequ
 	emit(InstallEvent{Step: "vm", Level: "info", Text: fmt.Sprintf("creating VM %s: %d CPUs, %d GB memory, %d GB disk (first time downloads Ubuntu)", vm, req.CPUs, req.MemoryGB, req.DiskGB)})
 	start := exec.CommandContext(ctx, bin, "start", "--name", vm, "--tty=false",
 		"--cpus", strconv.Itoa(req.CPUs), "--memory", strconv.Itoa(req.MemoryGB), "--disk", strconv.Itoa(req.DiskGB),
+		// No folders from this Mac in the VM (Lima mounts your home by
+		// default), and no extra containerd: k3s brings its own.
+		"--mount-none", "--containerd", "none",
 		"template://ubuntu-lts")
 	if st := a.Local(); hasVM(st.VMs, req.Name) {
 		start = exec.CommandContext(ctx, bin, "start", "--tty=false", vm) // already created: just make sure it runs

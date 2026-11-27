@@ -78,6 +78,7 @@ jobs:
           sparse-checkout: |
             scripts/release-mac.sh
             build/darwin/entitlements.plist
+            build/darwin/lima.entitlements
           sparse-checkout-cone-mode: false
       - uses: actions/download-artifact@v4
         with:

@@ -23,15 +23,24 @@ if [ "$stage" = build ]; then
   tmp=$(mktemp)
   jq --arg v "$version" '.info.productVersion = $v' wails.json >"$tmp" && mv "$tmp" wails.json
   wails build -clean -platform darwin/universal -trimpath -ldflags "-s -w -X main.version=${version}"
+  scripts/fetch-lima.sh "$app"
   echo "$app"
   exit 0
 fi
 [ "$stage" = sign ] || { echo "unknown stage: $stage" >&2; exit 2; }
 
-codesign --force --deep --options runtime --timestamp \
+# Inside out, and never --deep: that would re-sign limactl with the app's
+# entitlements and drop the virtualization one Lima needs.
+limactl="$app/Contents/Resources/lima/bin/limactl"
+if [ -f "$limactl" ]; then
+  codesign --force --options runtime --timestamp \
+    --entitlements build/darwin/lima.entitlements \
+    --sign "$SIGN_IDENTITY" "$limactl"
+fi
+codesign --force --options runtime --timestamp \
   --entitlements build/darwin/entitlements.plist \
   --sign "$SIGN_IDENTITY" "$app"
-codesign --verify --strict --verbose=2 "$app"
+codesign --verify --deep --strict --verbose=2 "$app"
 
 # A plain dmg: the app and a link to /Applications.
 stagedir=$(mktemp -d)
