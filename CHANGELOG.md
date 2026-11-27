@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- New helpers start again: the app asked for a helper image tagged with
+  its own version (0.1.x), which doesn't exist, so helpers stayed in
+  Starting. It now asks for the engine's version.
+- Updates install themselves (Sparkle): once a day, or **Check for
+  updates…** in the ? menu; Settings can let them install when the app
+  quits.
 - Dialogs close with a click outside them, Esc or Cancel, and ask before
   throwing away anything you typed.
 

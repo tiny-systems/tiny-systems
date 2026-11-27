@@ -46,8 +46,14 @@ picked.
   for support on the clipboard: versions, VMs, each garden's health and
   the end of the log (`~/Library/Logs/Tiny Systems/app.log`). It holds no
   keys.
-- **Updates.** The app checks GitHub for a newer release a few times a day
-  and offers a Download button. It never installs anything by itself.
+- **Updates.** The app updates itself with
+  [Sparkle](https://sparkle-project.org): it checks once a day, shows
+  what's new, and installs when you say so, or by itself the next time
+  the app quits (Settings → Install updates automatically). **Check for
+  updates…** in the ? menu checks now. Updates are signed twice: by Apple
+  (Developer ID) and with the app's own update key, which Sparkle checks
+  before installing anything. 0.1.0 and 0.1.1 don't have this yet: they
+  show a Download button for the new version.
 
 ## Adding a garden
 
@@ -94,7 +100,10 @@ open "build/bin/Tiny Systems.app"
 A development build uses a Homebrew Lima (`brew install lima`); release
 builds bundle Lima with `scripts/fetch-lima.sh`, pinned by checksum, and
 sign `limactl` separately with the virtualization entitlement
-(`build/darwin/lima.entitlements`).
+(`build/darwin/lima.entitlements`). Release builds also carry
+Sparkle.framework (`scripts/fetch-sparkle.sh`, pinned by checksum); the
+app loads it when it's there, so a development build simply has no
+self-update.
 
 `wails dev` runs it with live reload. `TINY_DEMO=1` adds a demo garden with
 a helper in every state, for working on the look without a cluster
@@ -120,7 +129,12 @@ and `SHA256SUMS` to the GitHub release. Signing secrets live on the
 image is laid out by [dmgbuild](https://dmgbuild.readthedocs.io)
 (`scripts/dmg-settings.py`, pinned by hash in `scripts/dmg-requirements.txt`)
 over `build/darwin/dmg-background.tiff`, which `scripts/dmg-background.py`
-draws. After a release, update the cask in
+draws. Each release also gets `appcast.xml`, the feed Sparkle reads
+(`scripts/appcast.sh`): the dmg's EdDSA signature and the version's
+CHANGELOG section, the whole feed signed with the `SPARKLE_ED_KEY`
+secret. Its public half is `SUPublicEDKey` in `build/darwin/Info.plist`;
+the private key also lives in the release Mac's login Keychain (Sparkle
+account `tiny-systems-app`). After a release, update the cask in
 [tiny-systems/homebrew-tap](https://github.com/tiny-systems/homebrew-tap)
 (`Casks/tiny-systems.rb`: version and the dmg's sha256 from `SHA256SUMS`).
 

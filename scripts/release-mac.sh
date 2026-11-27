@@ -24,6 +24,7 @@ if [ "$stage" = build ]; then
   jq --arg v "$version" '.info.productVersion = $v' wails.json >"$tmp" && mv "$tmp" wails.json
   wails build -clean -platform darwin/universal -trimpath -ldflags "-s -w -X main.version=${version}"
   scripts/fetch-lima.sh "$app"
+  scripts/fetch-sparkle.sh app "$app"
   echo "$app"
   exit 0
 fi
@@ -31,6 +32,17 @@ fi
 
 # Inside out, and never --deep: that would re-sign limactl with the app's
 # entitlements and drop the virtualization one Lima needs.
+sign() { codesign --force --options runtime --timestamp --sign "$SIGN_IDENTITY" "$@"; }
+# Sparkle's helpers, then the framework (Sparkle's documented order; the
+# Downloader keeps its own entitlements).
+fw="$app/Contents/Frameworks/Sparkle.framework"
+if [ -d "$fw" ]; then
+  sign "$fw/Versions/B/XPCServices/Installer.xpc"
+  sign --preserve-metadata=entitlements "$fw/Versions/B/XPCServices/Downloader.xpc"
+  sign "$fw/Versions/B/Autoupdate"
+  sign "$fw/Versions/B/Updater.app"
+  sign "$fw"
+fi
 limactl="$app/Contents/Resources/lima/bin/limactl"
 if [ -f "$limactl" ]; then
   codesign --force --options runtime --timestamp \

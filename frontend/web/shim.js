@@ -61,6 +61,8 @@
   window.go = { main: { App: {
     Version: async () => 'web demo',
     CheckUpdate: async () => ({ available: false }),
+    CheckForUpdates: async () => false,
+    Updater: async () => false,
     DemoSelect: async () => params.get('select') || '',
     Targets: async () => { await ready; return clone(state.targets); },
     Contexts: async () => [],
@@ -137,7 +139,7 @@
 
     Notify: async () => {},
     SetBadge: async () => {},
-    GetSettings: async () => ({ openAtLogin: false, startVMs: true, checkUpdates: true }),
+    GetSettings: async () => ({ openAtLogin: false, startVMs: true, checkUpdates: true, autoUpdate: true }),
     SaveSettings: notInDemo,
     CopyDiagnostics: notInDemo,
     SetSandbox: async () => {},

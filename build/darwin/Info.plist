@@ -21,6 +21,14 @@
         <string>13.0</string>
         <key>NSHighResolutionCapable</key>
         <string>true</string>
+        <key>SUFeedURL</key>
+        <string>https://github.com/tiny-systems/tiny-systems/releases/latest/download/appcast.xml</string>
+        <key>SUPublicEDKey</key>
+        <string>quGjD7osKkWXeqho/3j/KfdI4zIVvBQIgjHAW/7rnUE=</string>
+        <key>SURequireSignedFeed</key>
+        <true/>
+        <key>SUEnableAutomaticChecks</key>
+        <true/>
         <key>NSHumanReadableCopyright</key>
         <string>{{.Info.Copyright}}</string>
         {{if .Info.FileAssociations}}

@@ -5,6 +5,8 @@ import {fleet} from '../models';
 
 export function Answer(arg1:main.Target,arg2:main.Asking,arg3:string):Promise<void>;
 
+export function CheckForUpdates():Promise<boolean>;
+
 export function CheckUpdate():Promise<main.Update>;
 
 export function ClaudeSetupToken():Promise<void>;
@@ -70,6 +72,8 @@ export function Targets():Promise<Array<main.Target>>;
 export function TermInput(arg1:string,arg2:string):Promise<void>;
 
 export function TermResize(arg1:string,arg2:number,arg3:number):Promise<void>;
+
+export function Updater():Promise<boolean>;
 
 export function UpgradeRuntime(arg1:main.Target):Promise<void>;
 

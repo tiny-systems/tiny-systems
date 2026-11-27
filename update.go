@@ -22,11 +22,12 @@ type Update struct {
 	Notes     string `json:"notes,omitempty"`   // the release page, for "What's new"
 }
 
-// CheckUpdate asks GitHub for the latest release. It never downloads or
-// installs anything: the window offers the link and the person decides.
-// A development build, or no network, reports nothing available.
+// CheckUpdate asks GitHub for the latest release, for builds without
+// Sparkle (0.1.0 and 0.1.1, development builds): the window offers the
+// download and the person decides. A release with Sparkle reports nothing
+// here, since Sparkle checks and installs updates itself.
 func (a *App) CheckUpdate() Update {
-	if !loadSettings().CheckUpdates {
+	if sparkle || !loadSettings().CheckUpdates { // Sparkle has its own notice
 		return Update{}
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)

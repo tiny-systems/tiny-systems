@@ -440,6 +440,7 @@ export namespace main {
 	    startVMs: boolean;
 	    openAtLogin: boolean;
 	    checkUpdates: boolean;
+	    autoUpdate: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new Settings(source);
@@ -450,6 +451,7 @@ export namespace main {
 	        this.startVMs = source["startVMs"];
 	        this.openAtLogin = source["openAtLogin"];
 	        this.checkUpdates = source["checkUpdates"];
+	        this.autoUpdate = source["autoUpdate"];
 	    }
 	}
 	

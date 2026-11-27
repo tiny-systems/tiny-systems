@@ -482,7 +482,10 @@ function openMenu(anchor, items) {
   }));
   const r = anchor.getBoundingClientRect();
   m.hidden = false;
-  m.style.top = `${r.bottom + 6}px`;
+  // Below the button, or above it when there's no room (the ? button sits
+  // at the bottom of the rail).
+  const below = r.bottom + 6;
+  m.style.top = `${below + m.offsetHeight > innerHeight - 8 ? Math.max(8, r.top - 6 - m.offsetHeight) : below}px`;
   m.style.left = `${Math.max(8, r.right - m.offsetWidth)}px`;
   setTimeout(() => document.addEventListener('click', () => { m.hidden = true; }, { once: true }), 0);
 }
@@ -654,13 +657,14 @@ $('#help').onclick = (e) => {
   e.stopPropagation();
   openMenu($('#help'), [
     ['Help and docs', '', () => BrowserOpenURL('https://tinysystems.dev/docs/')],
+    ['Check for updates…', '', checkNow],
     ['Settings', '', openSettings],
     ['Copy diagnostics', '', () => App.CopyDiagnostics().then(() => toast('Diagnostics copied: paste them into your message to support')).catch((err) => toast(friendly(err), true))],
   ]);
 };
 
 function openSettings() {
-  App.GetSettings().then((cur) => {
+  Promise.all([App.GetSettings(), App.Updater()]).then(([cur, updater]) => {
     const form = el('form');
     form.style.cssText = 'padding:0;display:flex;flex-direction:column;gap:12px';
     const check = (name, label, on) => {
@@ -674,6 +678,7 @@ function openSettings() {
       check('openAtLogin', 'Open Tiny Systems when you log in', cur.openAtLogin),
       check('startVMs', 'Start this Mac’s gardens when the app opens', cur.startVMs),
       check('checkUpdates', 'Tell me when a new version is out', cur.checkUpdates),
+      ...(updater ? [check('autoUpdate', 'Install updates automatically when the app quits', cur.autoUpdate)] : []),
       el('p', 'hint', 'Closing the window keeps Tiny Systems running, so helpers can still reach you. Quit with ⌘Q.'),
     );
     const save = el('button', 'btn primary', 'Save');
@@ -683,7 +688,7 @@ function openSettings() {
       ev.preventDefault();
       const d = new FormData(form);
       try {
-        await App.SaveSettings({ openAtLogin: d.has('openAtLogin'), startVMs: d.has('startVMs'), checkUpdates: d.has('checkUpdates') });
+        await App.SaveSettings({ openAtLogin: d.has('openAtLogin'), startVMs: d.has('startVMs'), checkUpdates: d.has('checkUpdates'), autoUpdate: d.has('autoUpdate') });
         $('#wizard').close();
         toast('Settings saved');
       } catch (err) { toast(friendly(err), true); }
@@ -1001,8 +1006,18 @@ async function reloadTargets() {
 }
 $('#add-garden').onclick = stepWhere;
 
-/* Updates: a quiet note when a newer release is out. Nothing installs
-   itself; Download opens the release and the person decides. */
+/* Updates. A release build has Sparkle, which checks, shows what's new
+   and installs (Settings decides whether it waits to be asked). Without
+   it (0.1.0, 0.1.1, development builds) a quiet note offers the
+   download and the person decides. */
+
+async function checkNow() {
+  try { if (await App.CheckForUpdates()) return; } catch {}
+  let u;
+  try { u = await App.CheckUpdate(); } catch { u = null; }
+  if (u && u.available) { try { localStorage.removeItem('update-skipped'); } catch {} checkUpdate(); return; }
+  toast(`You have the latest version (${await App.Version()})`);
+}
 
 async function checkUpdate() {
   let u;

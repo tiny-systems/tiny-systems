@@ -6,6 +6,10 @@ export function Answer(arg1, arg2, arg3) {
   return window['go']['main']['App']['Answer'](arg1, arg2, arg3);
 }
 
+export function CheckForUpdates() {
+  return window['go']['main']['App']['CheckForUpdates']();
+}
+
 export function CheckUpdate() {
   return window['go']['main']['App']['CheckUpdate']();
 }
@@ -136,6 +140,10 @@ export function TermInput(arg1, arg2) {
 
 export function TermResize(arg1, arg2, arg3) {
   return window['go']['main']['App']['TermResize'](arg1, arg2, arg3);
+}
+
+export function Updater() {
+  return window['go']['main']['App']['Updater']();
 }
 
 export function UpgradeRuntime(arg1) {

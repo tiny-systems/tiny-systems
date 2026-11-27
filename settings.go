@@ -21,9 +21,12 @@ type Settings struct {
 	StartVMs     bool `json:"startVMs"`     // start this Mac's gardens when the app opens
 	OpenAtLogin  bool `json:"openAtLogin"`  // read from Login Items, never stored
 	CheckUpdates bool `json:"checkUpdates"` // look for a newer release
+	AutoUpdate   bool `json:"autoUpdate"`   // download updates and install them on quit (Sparkle builds)
 }
 
-func defaultSettings() Settings { return Settings{StartVMs: true, CheckUpdates: true} }
+func defaultSettings() Settings {
+	return Settings{StartVMs: true, CheckUpdates: true, AutoUpdate: true}
+}
 
 func appDir() string {
 	dir, err := os.UserConfigDir()
@@ -60,7 +63,11 @@ func (a *App) SaveSettings(s Settings) error {
 	if err := os.MkdirAll(appDir(), 0o700); err != nil {
 		return err
 	}
-	return os.WriteFile(filepath.Join(appDir(), "settings.json"), append(b, '\n'), 0o600)
+	if err := os.WriteFile(filepath.Join(appDir(), "settings.json"), append(b, '\n'), 0o600); err != nil {
+		return err
+	}
+	applyUpdater(s)
+	return nil
 }
 
 // SetBadge puts the number of helpers waiting for you on the Dock icon.

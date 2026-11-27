@@ -11,6 +11,9 @@
 #   NOTARY_KEY_P8         base64 of the App Store Connect API key (.p8)
 #   NOTARY_KEY_ID         that key's ID
 #   NOTARY_ISSUER         the App Store Connect issuer ID
+#   SPARKLE_ED_KEY        the EdDSA key update feeds and dmgs are signed with
+#                         (Sparkle's generate_keys -x; its public half is
+#                         SUPublicEDKey in build/darwin/Info.plist)
 # Protect it in Settings → Environments: required reviewer, and deployments
 # only from v* tags and main.
 name: release
@@ -77,6 +80,9 @@ jobs:
           persist-credentials: false
           sparse-checkout: |
             scripts/release-mac.sh
+            scripts/fetch-sparkle.sh
+            scripts/appcast.sh
+            CHANGELOG.md
             scripts/dmg-settings.py
             scripts/dmg-requirements.txt
             build/darwin/dmg-background.tiff
@@ -129,6 +135,17 @@ jobs:
           echo "$P8" | base64 --decode > "$NOTARY_KEY_PATH"
           scripts/release-mac.sh sign "$VERSION"
 
+      # The update feed Sparkle reads: this version's dmg, signed with the
+      # Sparkle key, uploaded to every release as appcast.xml.
+      - name: Sparkle feed
+        env:
+          ED_KEY: ${{ secrets.SPARKLE_ED_KEY }}
+        run: |
+          scripts/fetch-sparkle.sh tools "$RUNNER_TEMP/sparkle"
+          ( umask 077; printf '%s' "$ED_KEY" > "$RUNNER_TEMP/ed.key" )
+          scripts/appcast.sh "$VERSION" "build/bin/Tiny-Systems-$VERSION.dmg" "$RUNNER_TEMP/ed.key" "$RUNNER_TEMP/sparkle/sign_update" > build/bin/appcast.xml
+          rm -f "$RUNNER_TEMP/ed.key"
+
       - uses: actions/upload-artifact@v4
         with:
           name: dmg
@@ -144,10 +161,10 @@ jobs:
           # releases/latest/download/Tiny-Systems.dmg and never go stale.
           cp "build/bin/Tiny-Systems-$VERSION.dmg" build/bin/Tiny-Systems.dmg
           (cd build/bin && shasum -a 256 "Tiny-Systems-$VERSION.dmg" Tiny-Systems.dmg > SHA256SUMS)
-          gh release upload "$GITHUB_REF_NAME" "build/bin/Tiny-Systems-$VERSION.dmg" build/bin/Tiny-Systems.dmg build/bin/SHA256SUMS -R "$GITHUB_REPOSITORY" --clobber
+          gh release upload "$GITHUB_REF_NAME" "build/bin/Tiny-Systems-$VERSION.dmg" build/bin/Tiny-Systems.dmg build/bin/SHA256SUMS build/bin/appcast.xml -R "$GITHUB_REPOSITORY" --clobber
 
       - name: Clean up
         if: always()
         run: |
           security delete-keychain "$RUNNER_TEMP/sign.keychain-db" 2>/dev/null || true
-          rm -f "$RUNNER_TEMP/notary.p8"
+          rm -f "$RUNNER_TEMP/notary.p8" "$RUNNER_TEMP/ed.key"
