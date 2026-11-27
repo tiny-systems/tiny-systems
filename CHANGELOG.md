@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Dialogs close with a click outside them, Esc or Cancel, and ask before
+  throwing away anything you typed.
+
 ## 0.1.1
 
 - Quieter, livelier motion: buttons press in, icons grow a touch on hover,

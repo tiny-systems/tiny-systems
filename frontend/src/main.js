@@ -401,18 +401,75 @@ async function answer(r, m, value) {
 }
 
 function confirmRemove(r) {
-  const d = $('#confirm-dialog');
-  $('#confirm-title').textContent = `Remove ${helperName(r.name)}?`;
-  $('#confirm-body').textContent = 'It stops, and its files and conversation are deleted. This can’t be undone.';
-  d.returnValue = '';
-  d.showModal();
-  d.onclose = () => {
-    if (d.returnValue !== 'ok') return;
+  ask({ title: `Remove ${helperName(r.name)}?`, body: 'It stops, and its files and conversation are deleted. This can’t be undone.', ok: 'Remove' }).then((yes) => {
+    if (!yes) return;
     closeTerminal();
     state.sel = null;
     run(`${helperName(r.name)} removed`, () => App.Delete(targetOf(r.key), r.name));
-  };
+  });
 }
+
+/* Modals: one rule for every dialog. A click on the dimmed area, Esc or
+   Cancel closes it; if anything was typed or changed, it asks first. A
+   dialog marked data-lock (setup running) stays open. */
+
+const fieldsOf = (d) => [...d.querySelectorAll('input, textarea, select')]
+  .map((f) => (f.type === 'checkbox' || f.type === 'radio' ? f.checked : f.value)).join('\u0001');
+// settle remembers what the fields hold now, so only the person's own
+// edits count as "something entered".
+const settle = (d) => { d._snap = fieldsOf(d); };
+const modals = []; // open dialogs, topmost last
+function openModal(d) {
+  if (!d.open) { d.showModal(); modals.push(d); }
+  settle(d);
+}
+
+// ask is the small confirm dialog; it resolves true on the danger button.
+function ask({ title, body, ok, keep = 'Keep' }) {
+  const d = $('#confirm-dialog');
+  $('#confirm-title').textContent = title;
+  $('#confirm-body').textContent = body;
+  $('#confirm-ok').textContent = ok;
+  $('#confirm-keep').textContent = keep;
+  d.returnValue = '';
+  openModal(d);
+  // A close event from an earlier ask can arrive after this one opened;
+  // it's stale while the dialog is open again.
+  return new Promise((resolve) => { d.onclose = () => { if (!d.open) resolve(d.returnValue === 'ok'); }; });
+}
+
+async function dismiss(d) {
+  const c = $('#confirm-dialog');
+  if (d.dataset.lock || (d !== c && c.open)) return;
+  if (d._snap != null && fieldsOf(d) !== d._snap) {
+    const yes = await ask({ title: 'Discard what you entered?', body: 'Closing this window loses it.', ok: 'Discard', keep: 'Keep editing' });
+    if (!yes) return;
+  }
+  d.close('cancel');
+}
+
+for (const d of document.querySelectorAll('dialog')) {
+  // Only a press and release both outside the box count, so dragging a
+  // text selection out of a field doesn't close anything.
+  const outside = (e) => {
+    const r = d.getBoundingClientRect();
+    return e.target === d && (e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom);
+  };
+  let downOutside = false;
+  d.addEventListener('pointerdown', (e) => { downOutside = outside(e); });
+  d.addEventListener('click', (e) => { if (downOutside && outside(e)) dismiss(d); downOutside = false; });
+  d.addEventListener('cancel', (e) => { e.preventDefault(); dismiss(d); });
+  d.addEventListener('close', () => { const i = modals.indexOf(d); if (i >= 0) modals.splice(i, 1); });
+}
+// Esc goes to the topmost dialog wherever focus is. Handled here because
+// the browser only lets a page cancel its own Esc-close once.
+document.addEventListener('keydown', (e) => {
+  const top = modals.filter((d) => d.open).pop();
+  if (e.key !== 'Escape' || !top) return;
+  e.preventDefault();
+  e.stopPropagation();
+  dismiss(top);
+}, true);
 
 /* Menu */
 
@@ -621,7 +678,7 @@ function openSettings() {
     );
     const save = el('button', 'btn primary', 'Save');
     save.type = 'submit';
-    form.append(actionsRow(wbtn('Cancel', 'ghost', () => $('#wizard').close()), save));
+    form.append(actionsRow(wbtn('Cancel', 'ghost', () => dismiss($('#wizard'))), save));
     form.onsubmit = async (ev) => {
       ev.preventDefault();
       const d = new FormData(form);
@@ -677,10 +734,10 @@ function openNew(target) {
   const pick = target ? keyOf(target) : state.sel?.key;
   if (pick && live.some((t) => keyOf(t) === pick)) sel.value = pick;
   if (!live.length) { toast('Add a garden first: that’s where helpers live.', true); return; }
-  $('#new-dialog').showModal();
+  openModal($('#new-dialog'));
 }
 $('#new-btn').onclick = () => openNew();
-$('#new-cancel').onclick = () => $('#new-dialog').close();
+$('#new-cancel').onclick = () => dismiss($('#new-dialog'));
 $('#new-form').onsubmit = async (e) => {
   e.preventDefault();
   const d = Object.fromEntries(new FormData(e.target));
@@ -700,7 +757,7 @@ $('#new-form').onsubmit = async (e) => {
 /* Add a garden: a short guided flow */
 
 const wz = { req: null };
-const wizard = (...c) => { $('#wz').replaceChildren(...c); if (!$('#wizard').open) $('#wizard').showModal(); };
+const wizard = (...c) => { const d = $('#wizard'); delete d.dataset.lock; $('#wz').replaceChildren(...c); openModal(d); };
 const actionsRow = (...b) => { const a = el('div', 'actions'); a.append(...b); return a; };
 const wbtn = (label, cls, fn) => { const b = el('button', `btn ${cls}`, label); b.type = 'button'; b.onclick = fn; return b; };
 // slug turns whatever name was typed ("Home Garden") into the form
@@ -749,7 +806,7 @@ function signInDialog(t) {
   form.style.cssText = 'padding:0;display:flex;flex-direction:column;gap:13px';
   const save = el('button', 'btn primary', 'Sign in');
   save.type = 'submit';
-  form.append(keyBlock(), actionsRow(wbtn('Cancel', 'ghost', () => $('#wizard').close()), save));
+  form.append(keyBlock(), actionsRow(wbtn('Cancel', 'ghost', () => dismiss($('#wizard'))), save));
   form.onsubmit = async (e) => {
     e.preventDefault();
     save.disabled = true;
@@ -775,7 +832,7 @@ function stepWhere() {
   other.append(glyph('done', 22, { tile: true }), el('b', '', 'Another computer'), el('span', '', 'A computer at home or in the office that stays on. Helpers keep working while you’re away.'));
   other.onclick = () => stepDetails('remote');
   places.append(mac, other);
-  wizard(el('h2', '', 'Add a garden'), el('p', 'lead', 'Where should your helpers live?'), places, actionsRow(wbtn('Cancel', 'ghost', () => $('#wizard').close())));
+  wizard(el('h2', '', 'Add a garden'), el('p', 'lead', 'Where should your helpers live?'), places, actionsRow(wbtn('Cancel', 'ghost', () => dismiss($('#wizard')))));
 }
 
 function stepDetails(where) {
@@ -872,6 +929,7 @@ function grow(req) {
   const acts = actionsRow(close);
   acts.id = 'grow-actions';
   wizard(h, lead, list, trust, log, acts);
+  $('#wizard').dataset.lock = '1'; // setup is running: Close unlocks when it ends
   const p = req.local
     ? App.InstallLocal({ name: req.name, cpus: req.cpus, memoryGB: req.memoryGB, diskGB: req.diskGB, gvisor: req.gvisor, copyFrom: req.copyFrom, token: req.token })
     : App.Install(req);
@@ -884,6 +942,7 @@ function markStep(s, cls, detail) {
 }
 
 function finish(ok, text, target) {
+  delete $('#wizard').dataset.lock;
   $('#grow-close').disabled = false;
   $('#grow-title').textContent = ok ? `${title(wz.req.name)} is ready` : 'Setup stopped';
   const acts = $('#grow-actions');

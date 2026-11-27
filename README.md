@@ -36,6 +36,8 @@ picked.
   each one is doing (disk, memory, runtime version, sign-in), with the fix
   beside what's wrong: start a stopped VM, upgrade the runtime, copy the
   sign-in from another garden, turn the sandbox on.
+- **Dialogs** close with a click outside them, Esc or Cancel; if you've
+  typed something, the app asks before throwing it away.
 - **Notifications** when a helper starts waiting for you, and the count on
   the Dock icon. Closing the window keeps the app running so helpers can
   still reach you; click the Dock icon to bring it back, ⌘Q to quit.

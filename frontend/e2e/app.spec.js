@@ -64,3 +64,24 @@ test('settings open from the help button', async ({ page }) => {
   await expect(page.locator('#wizard')).toContainText('Start this Mac’s gardens');
   await expect(page.locator('input[name=startVMs]')).toBeChecked();
 });
+
+test('a dialog closes from the dimmed area, asking first when something was typed', async ({ page }) => {
+  await page.goto('/');
+  const dlg = page.locator('#new-dialog');
+  const confirm = page.locator('#confirm-dialog');
+  // Empty: a click outside closes it straight away.
+  await page.locator('#new-btn').click();
+  await expect(dlg).toBeVisible();
+  await page.mouse.click(8, 8);
+  await expect(dlg).toBeHidden();
+  // Typed: it asks; Keep editing keeps the text, Discard closes.
+  await page.locator('#new-btn').click();
+  await dlg.locator('textarea[name=task]').fill('Tidy the README');
+  await page.mouse.click(8, 8);
+  await expect(confirm).toContainText('Discard what you entered?');
+  await confirm.getByRole('button', { name: 'Keep editing' }).click();
+  await expect(dlg.locator('textarea[name=task]')).toHaveValue('Tidy the README');
+  await page.keyboard.press('Escape');
+  await confirm.getByRole('button', { name: 'Discard' }).click();
+  await expect(dlg).toBeHidden();
+});
