@@ -5,6 +5,8 @@ import {fleet} from '../models';
 
 export function Answer(arg1:main.Target,arg2:main.Asking,arg3:string):Promise<void>;
 
+export function CheckUpdate():Promise<main.Update>;
+
 export function CloseTerminal(arg1:string):Promise<void>;
 
 export function Contexts():Promise<Array<string>>;

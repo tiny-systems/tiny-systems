@@ -53,8 +53,8 @@ type InstallRequest struct {
 
 // InstallEvent is one line of progress, sent as "install:event".
 type InstallEvent struct {
-	Step  string `json:"step"`            // connect, preflight, k3s, gvisor, kubeconfig, runtime, credentials, done
-	Level string `json:"level"`           // info, ok, warn, error, log
+	Step  string `json:"step"`  // connect, preflight, k3s, gvisor, kubeconfig, runtime, credentials, done
+	Level string `json:"level"` // info, ok, warn, error, log
 	Text  string `json:"text"`
 	Data  any    `json:"data,omitempty"` // done: the new Target; hostkey: {fingerprint}
 }

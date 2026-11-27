@@ -6,6 +6,10 @@ export function Answer(arg1, arg2, arg3) {
   return window['go']['main']['App']['Answer'](arg1, arg2, arg3);
 }
 
+export function CheckUpdate() {
+  return window['go']['main']['App']['CheckUpdate']();
+}
+
 export function CloseTerminal(arg1) {
   return window['go']['main']['App']['CloseTerminal'](arg1);
 }

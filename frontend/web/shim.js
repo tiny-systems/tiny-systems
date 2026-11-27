@@ -60,6 +60,7 @@
 
   window.go = { main: { App: {
     Version: async () => 'web demo',
+    CheckUpdate: async () => ({ available: false }),
     DemoSelect: async () => params.get('select') || '',
     Targets: async () => { await ready; return clone(state.targets); },
     Contexts: async () => [],

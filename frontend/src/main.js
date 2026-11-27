@@ -799,6 +799,25 @@ async function reloadTargets() {
 }
 $('#add-garden').onclick = stepWhere;
 
+/* Updates: a quiet note when a newer release is out. Nothing installs
+   itself; Download opens the release and the person decides. */
+
+async function checkUpdate() {
+  let u;
+  try { u = await App.CheckUpdate(); } catch { return; }
+  if (!u || !u.available) return;
+  let skipped = '';
+  try { skipped = localStorage.getItem('update-skipped') || ''; } catch {}
+  if (skipped === u.version) return;
+  $('#update-text').textContent = `Tiny Systems ${u.version} is available`;
+  $('#update-get').onclick = () => BrowserOpenURL(u.url);
+  $('#update-close').onclick = () => {
+    try { localStorage.setItem('update-skipped', u.version); } catch {}
+    $('#update').hidden = true;
+  };
+  $('#update').hidden = false;
+}
+
 /* Start */
 
 async function start() {
@@ -816,3 +835,5 @@ async function start() {
 }
 
 start();
+checkUpdate();
+setInterval(checkUpdate, 6 * 60 * 60 * 1000);

@@ -186,6 +186,11 @@ func (a *App) Fleet(t Target) Fleet {
 		f.ErrorText = err.Error()
 		return f
 	}
+	return fleetFrom(f, *snap)
+}
+
+// fleetFrom turns one read of the cluster into what the window shows.
+func fleetFrom(f Fleet, snap fleet.Snapshot) Fleet {
 	for _, r := range snap.Rows {
 		row := Row{
 			Name: r.Name, Parent: r.Parent, Depth: r.Depth, Phase: r.Phase, Glyph: r.Glyph(),

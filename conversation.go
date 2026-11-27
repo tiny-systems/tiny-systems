@@ -40,40 +40,48 @@ func (a *App) Conversation(t Target, session string) ([]Message, error) {
 		if err := c.Kube.Client.Get(ctx, client.ObjectKey{Namespace: c.Kube.Namespace, Name: session}, se); err != nil {
 			return err
 		}
-		if se.Spec.Task != "" {
-			out = append(out, Message{From: "you", Text: se.Spec.Task, At: se.CreationTimestamp.Format(time.RFC3339)})
-		}
-		for _, m := range se.Spec.Inbox {
-			// Answers are copied into the inbox for the agent; the
-			// question below already shows them.
-			if strings.HasPrefix(m.Text, "Answer to your question ") {
-				continue
-			}
-			out = append(out, Message{From: "you", Text: m.Text, At: inboxTime(m.ID, se.CreationTimestamp.Time)})
-		}
 		qs := &agentsv1.QuestionList{}
 		if err := c.Kube.Client.List(ctx, qs, client.InNamespace(c.Kube.Namespace)); err != nil {
 			return err
 		}
-		for _, q := range qs.Items {
-			if q.Spec.Session.Name != session {
-				continue
-			}
-			idle := q.Spec.Reason == "notification"
-			// Idle cards that were answered or cleared say nothing worth
-			// keeping in the history.
-			if idle && q.Answered() {
-				continue
-			}
-			out = append(out, Message{
-				From: "helper", Text: q.Spec.Text, At: q.CreationTimestamp.Format(time.RFC3339),
-				Question: q.Name, Options: q.Spec.Options, Answer: q.Status.Answer, Open: !q.Answered(), Idle: idle,
-			})
-		}
+		out = conversationFrom(se, qs.Items)
 		return nil
 	})
-	sort.SliceStable(out, func(i, j int) bool { return out[i].At < out[j].At })
 	return out, err
+}
+
+// conversationFrom rebuilds a helper's history from its Session and the
+// namespace's questions, oldest first.
+func conversationFrom(se *agentsv1.Session, qs []agentsv1.Question) []Message {
+	var out []Message
+	if se.Spec.Task != "" {
+		out = append(out, Message{From: "you", Text: se.Spec.Task, At: se.CreationTimestamp.Format(time.RFC3339)})
+	}
+	for _, m := range se.Spec.Inbox {
+		// Answers are copied into the inbox for the agent; the
+		// question below already shows them.
+		if strings.HasPrefix(m.Text, "Answer to your question ") {
+			continue
+		}
+		out = append(out, Message{From: "you", Text: m.Text, At: inboxTime(m.ID, se.CreationTimestamp.Time)})
+	}
+	for _, q := range qs {
+		if q.Spec.Session.Name != se.Name {
+			continue
+		}
+		idle := q.Spec.Reason == "notification"
+		// Idle cards that were answered or cleared say nothing worth
+		// keeping in the history.
+		if idle && q.Answered() {
+			continue
+		}
+		out = append(out, Message{
+			From: "helper", Text: q.Spec.Text, At: q.CreationTimestamp.Format(time.RFC3339),
+			Question: q.Name, Options: q.Spec.Options, Answer: q.Status.Answer, Open: !q.Answered(), Idle: idle,
+		})
+	}
+	sort.SliceStable(out, func(i, j int) bool { return out[i].At < out[j].At })
+	return out
 }
 
 // inboxTime reads the time out of an inbox id ("m-<unix nanoseconds>").
