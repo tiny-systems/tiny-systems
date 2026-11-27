@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # One-time setup: turns the Developer ID certificate into a .p12 and stores
-# it, with the notary key, as GitHub secrets for the release workflow.
+# it, with the notary key, as secrets on the `release` environment.
 # Run it yourself; it never prints a secret.
 #
 #   scripts/signing-secrets.sh <developerID_application.cer> <AuthKey_XXXX.p8> <issuer-id>
@@ -24,11 +24,12 @@ openssl pkcs12 -export -legacy -inkey "$key" -in "$dir/developer-id.pem" \
   -out "$dir/developer-id.p12" -passout "pass:$pw"
 chmod 600 "$dir/developer-id.p12"
 
-base64 -i "$dir/developer-id.p12" | gh secret set MACOS_CERT_P12 -R "$repo"
-printf %s "$pw" | gh secret set MACOS_CERT_PASSWORD -R "$repo"
-base64 -i "$p8" | gh secret set NOTARY_KEY_P8 -R "$repo"
-printf %s "$keyid" | gh secret set NOTARY_KEY_ID -R "$repo"
-printf %s "$issuer" | gh secret set NOTARY_ISSUER -R "$repo"
+gh api -X PUT "repos/$repo/environments/release" >/dev/null  # make sure it exists
+base64 -i "$dir/developer-id.p12" | gh secret set MACOS_CERT_P12 -R "$repo" --env release
+printf %s "$pw" | gh secret set MACOS_CERT_PASSWORD -R "$repo" --env release
+base64 -i "$p8" | gh secret set NOTARY_KEY_P8 -R "$repo" --env release
+printf %s "$keyid" | gh secret set NOTARY_KEY_ID -R "$repo" --env release
+printf %s "$issuer" | gh secret set NOTARY_ISSUER -R "$repo" --env release
 
 # Also into this Mac's keychain, so local builds can sign.
 security import "$dir/developer-id.p12" -k ~/Library/Keychains/login.keychain-db -P "$pw" -T /usr/bin/codesign

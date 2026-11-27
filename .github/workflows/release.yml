@@ -1,12 +1,18 @@
 # Tag vX.Y.Z to build a signed, notarized Tiny Systems.dmg and attach it
 # to the GitHub release.
 #
-# Repository secrets (set once with scripts/signing-secrets.sh):
+# Two jobs, so build code (npm packages, wails) never runs next to the
+# signing keys: `build` has no secrets and a read-only token; `sign` runs
+# only Apple's tools on the built app, under the `release` environment.
+#
+# Secrets live on the `release` environment (scripts/signing-secrets.sh):
 #   MACOS_CERT_P12        base64 of the Developer ID Application .p12
 #   MACOS_CERT_PASSWORD   its password
 #   NOTARY_KEY_P8         base64 of the App Store Connect API key (.p8)
 #   NOTARY_KEY_ID         that key's ID
 #   NOTARY_ISSUER         the App Store Connect issuer ID
+# Protect it in Settings → Environments: required reviewer, and deployments
+# only from v* tags and main.
 name: release
 on:
   push:
@@ -18,16 +24,24 @@ on:
         required: true
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  mac:
+  build:
+    if: github.event_name == 'push' || github.ref == 'refs/heads/main'
     runs-on: macos-14
-    timeout-minutes: 60
-    env:
-      SIGN_IDENTITY: 'Developer ID Application: Tiny Systems Limited (74JHK2JWS7)'
+    timeout-minutes: 40
+    outputs:
+      version: ${{ steps.v.outputs.version }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - id: v
+        run: |
+          v="${{ github.event.inputs.version }}"
+          [ -n "$v" ] || v="${GITHUB_REF_NAME#v}"
+          echo "version=$v" >> "$GITHUB_OUTPUT"
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
@@ -36,6 +50,39 @@ jobs:
           node-version: 22
       - name: Install wails
         run: go install github.com/wailsapp/wails/v2/cmd/wails@$(go list -m -f '{{.Version}}' github.com/wailsapp/wails/v2)
+      - name: Build (unsigned)
+        run: scripts/release-mac.sh build "${{ steps.v.outputs.version }}"
+      - name: Pack app
+        run: tar -C build/bin -czf app.tgz "Tiny Systems.app"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: app
+          path: app.tgz
+          retention-days: 3
+
+  sign:
+    needs: build
+    runs-on: macos-14
+    timeout-minutes: 45
+    environment: release
+    permissions:
+      contents: write
+    env:
+      SIGN_IDENTITY: 'Developer ID Application: Tiny Systems Limited (74JHK2JWS7)'
+      VERSION: ${{ needs.build.outputs.version }}
+    steps:
+      # Only the release script and entitlements are needed from the repo.
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            scripts/release-mac.sh
+            build/darwin/entitlements.plist
+          sparse-checkout-cone-mode: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: app
+      - run: mkdir -p build/bin && tar -C build/bin -xzf app.tgz
 
       - name: Signing keychain
         env:
@@ -54,21 +101,15 @@ jobs:
           rm "$RUNNER_TEMP/cert.p12"
           security find-identity -v -p codesigning "$kc"
 
-      - name: Notary key
+      - name: Sign, notarize, staple
         env:
           P8: ${{ secrets.NOTARY_KEY_P8 }}
-        run: |
-          echo "$P8" | base64 --decode > "$RUNNER_TEMP/notary.p8"
-          echo "NOTARY_KEY_PATH=$RUNNER_TEMP/notary.p8" >> "$GITHUB_ENV"
-
-      - name: Build, sign, notarize
-        env:
           NOTARY_KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
           NOTARY_ISSUER: ${{ secrets.NOTARY_ISSUER }}
         run: |
-          v="${{ github.event.inputs.version }}"
-          [ -n "$v" ] || v="${GITHUB_REF_NAME#v}"
-          scripts/release-mac.sh "$v"
+          export NOTARY_KEY_PATH="$RUNNER_TEMP/notary.p8"
+          echo "$P8" | base64 --decode > "$NOTARY_KEY_PATH"
+          scripts/release-mac.sh sign "$VERSION"
           echo "DMG=$(ls build/bin/*.dmg)" >> "$GITHUB_ENV"
 
       - uses: actions/upload-artifact@v4
@@ -81,8 +122,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 || gh release create "$GITHUB_REF_NAME" --title "Tiny Systems $GITHUB_REF_NAME" --generate-notes
-          gh release upload "$GITHUB_REF_NAME" "$DMG" --clobber
+          gh release view "$GITHUB_REF_NAME" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 || gh release create "$GITHUB_REF_NAME" -R "$GITHUB_REPOSITORY" --title "Tiny Systems $GITHUB_REF_NAME" --generate-notes
+          gh release upload "$GITHUB_REF_NAME" "$DMG" -R "$GITHUB_REPOSITORY" --clobber
 
       - name: Clean up
         if: always()
