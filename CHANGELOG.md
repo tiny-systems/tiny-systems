@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.2
 
 - New helpers start again: the app asked for a helper image tagged with
   its own version (0.1.x), which doesn't exist, so helpers stayed in

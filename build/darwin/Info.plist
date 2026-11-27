@@ -27,6 +27,8 @@
         <string>quGjD7osKkWXeqho/3j/KfdI4zIVvBQIgjHAW/7rnUE=</string>
         <key>SURequireSignedFeed</key>
         <true/>
+        <key>SUVerifyUpdateBeforeExtraction</key>
+        <true/>
         <key>SUEnableAutomaticChecks</key>
         <true/>
         <key>NSHumanReadableCopyright</key>

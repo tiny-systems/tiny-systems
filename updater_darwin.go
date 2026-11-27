@@ -14,6 +14,7 @@ package main
 @protocol TSUpdater <NSObject>
 @property BOOL automaticallyChecksForUpdates;
 @property BOOL automaticallyDownloadsUpdates;
+- (BOOL)startUpdater:(NSError **)error;
 @end
 
 @protocol TSUpdaterController <NSObject>
@@ -23,6 +24,7 @@ package main
 @end
 
 static id<TSUpdaterController> tsController;
+static char tsStatus[256] = "not started";
 
 // Loads the framework; 1 when it's there. The updater itself starts on the
 // main thread, with the checks set the way the person chose.
@@ -34,9 +36,20 @@ static int tsSparkleStart(int checks, int install) {
 	Class c = NSClassFromString(@"SPUStandardUpdaterController");
 	if (c == nil) return 0;
 	dispatch_async(dispatch_get_main_queue(), ^{
-		tsController = [(id<TSUpdaterController>)[c alloc] initWithStartingUpdater:YES updaterDelegate:nil userDriverDelegate:nil];
-		tsController.updater.automaticallyChecksForUpdates = checks != 0;
-		tsController.updater.automaticallyDownloadsUpdates = checks != 0 && install != 0;
+		// Started by hand rather than by the controller, so a failure
+		// lands in the app's log instead of only in an alert.
+		tsController = [(id<TSUpdaterController>)[c alloc] initWithStartingUpdater:NO updaterDelegate:nil userDriverDelegate:nil];
+		id<TSUpdater> u = tsController.updater;
+		NSError *serr = nil;
+		if (![u startUpdater:&serr]) {
+			snprintf(tsStatus, sizeof tsStatus, "failed to start: %s", serr.localizedDescription.UTF8String ?: "unknown error");
+			return;
+		}
+		u.automaticallyChecksForUpdates = checks != 0;
+		u.automaticallyDownloadsUpdates = checks != 0 && install != 0;
+		snprintf(tsStatus, sizeof tsStatus, "running, checks=%d install=%d, feed %s",
+			u.automaticallyChecksForUpdates, u.automaticallyDownloadsUpdates,
+			[[[(id)u valueForKey:@"feedURL"] absoluteString] UTF8String] ?: "none");
 	});
 	return 1;
 }
@@ -49,6 +62,8 @@ static void tsSparkleSet(int checks, int install) {
 	});
 }
 
+static const char *tsSparkleStatus(void) { return tsStatus; }
+
 // Opens Sparkle's own window: checking, then what's new and Install.
 static void tsSparkleCheck(void) {
 	dispatch_async(dispatch_get_main_queue(), ^{
@@ -59,7 +74,10 @@ static void tsSparkleCheck(void) {
 */
 import "C"
 
-import "log"
+import (
+	"log"
+	"time"
+)
 
 // sparkle is true once Sparkle is running; then it does the checking and
 // installing, and the window's own notice stays quiet.
@@ -75,6 +93,12 @@ func cbool(b bool) C.int {
 func startUpdater(s Settings) {
 	sparkle = C.tsSparkleStart(cbool(s.CheckUpdates), cbool(s.AutoUpdate)) != 0
 	log.Printf("updater: sparkle=%v", sparkle)
+	if sparkle {
+		go func() {
+			time.Sleep(5 * time.Second)
+			log.Printf("updater: %s", C.GoString(C.tsSparkleStatus()))
+		}()
+	}
 }
 
 func applyUpdater(s Settings) {
