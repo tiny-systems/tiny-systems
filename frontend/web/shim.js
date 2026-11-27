@@ -89,7 +89,7 @@
       await ready;
       const name = names.find((n) => !row(n)) || `s-${Date.now().toString(36)}`;
       const title = (req.task || '').trim() || 'Waiting for instructions';
-      state.fleet.rows.unshift({ name, depth: 0, phase: 'starting', glyph: '◌', title, activity: '', message: '', task: req.task || '', cpu: '', mem: '', age: 'now', paused: false, command: false, attachable: false });
+      state.fleet.rows.unshift({ name, depth: 0, phase: 'starting', glyph: '◌', title, activity: '', message: '', task: req.task || '', cpu: '', mem: '', age: 'now', paused: false, command: false, attachable: false, stage: 'waiting for a machine' });
       if (req.task) convo(name).push({ from: 'you', text: req.task, at: now() });
       later(2500, () => { const r = row(name); if (r) { r.phase = 'Running'; r.attachable = true; r.activity = req.task ? 'Reading the project' : ''; } });
       if (req.task) reply(name, 'Starting now. I’ll ask if anything needs your call.', 4000);

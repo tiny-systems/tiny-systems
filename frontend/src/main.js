@@ -140,9 +140,23 @@ function renderList() {
     if (!mine.length && (state.filter !== 'all' || q)) continue;
     const g = el('div', 'group');
     const dot = el('span', 'gdot' + (f?.error ? ' asleep' : ''));
-    g.append(dot, el('span', 'gn', gardenName(t)), el('span', '', f?.error ? 'asleep' : String((f?.rows || []).length)));
+    const n = (f?.rows || []).length;
+    g.append(dot, el('span', 'gn', gardenName(t)), el('span', 'gc', f?.error ? 'asleep' : n ? String(n) : ''));
+    if (!f?.error) {
+      const add = el('button', 'gadd');
+      add.setAttribute('aria-label', `New helper in ${gardenName(t)}`);
+      add.title = `New helper in ${gardenName(t)}`;
+      add.innerHTML = '<svg viewBox="0 0 24 24" width="13" height="13" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
+      add.onclick = () => openNew(t);
+      g.append(add);
+    }
     out.push(g);
     for (const r of mine) out.push(rowEl(r));
+    if (f && !f.error && !n && state.filter === 'all' && !q) {
+      const e = el('button', 'gempty', 'Start a helper');
+      e.onclick = () => openNew(t);
+      out.push(e);
+    }
   }
   if (!out.length) out.push(el('div', 'list-empty', q ? 'No helpers match.' : 'No helpers yet. Press + to start one.'));
   const first = seen.rows === null;
@@ -335,7 +349,7 @@ function renderChat(inner, r) {
     out.push(w);
   }
   if (r.kind === 'fail' && r.message) out.push(el('div', 'problem', r.message));
-  if (r.kind === 'seed') { const w = el('div', 'working'); w.append(el('span', 'spin'), 'Starting up…'); out.push(w); }
+  if (r.kind === 'seed') { const w = el('div', 'working'); w.append(el('span', 'spin'), r.stage ? `${r.stage[0].toUpperCase()}${r.stage.slice(1)}…` : 'Starting up…'); out.push(w); }
   if (!msgs.length && r.kind !== 'grow' && r.kind !== 'seed') out.push(el('div', 'day', 'No messages yet.'));
   const forId = `${r.key}/${r.name}`;
   const fresh = seen.msgsFor !== forId;
@@ -513,25 +527,32 @@ async function openTerminal(r, wrap) {
   const entry = { id: null, key: r.key, name: r.name, term, fit, host, closed: false };
   state.term = entry;
   term.write(`\x1b[2mconnecting to ${helperName(r.name)}…\x1b[0m\r\n`);
-  // A helper that was just planted takes a minute to start: keep trying
-  // while it's still this terminal, up to about three minutes.
-  for (let tries = 0; ; tries++) {
+  // A helper that was just started isn't attachable until its agent
+  // container runs. The app answers "starting: <step>" meanwhile; show each
+  // new step and try again. Other errors get a few retries, then show.
+  let last = '';
+  for (let fails = 0; ;) {
     try {
       entry.id = await App.OpenTerminal(targetOf(r.key), r.name, term.cols, term.rows);
       if (state.term !== entry) { App.CloseTerminal(entry.id); return; } // left while connecting
       break;
     } catch (e) {
       if (state.term !== entry) return;
-      if (tries >= 60) {
+      const msg = String(e?.message ?? e);
+      if (msg.startsWith('starting: ')) {
+        const step = msg.slice(10);
+        if (step !== last) term.write(`\x1b[2m${step}…\x1b[0m\r\n`);
+        last = step;
+      } else if (++fails >= 5) {
         term.write(`\r\n\x1b[31m${friendly(e)}\x1b[0m\r\n`);
         entry.closed = true;
         return;
       }
-      if (tries === 0) term.write(`\x1b[2mwaiting for ${helperName(r.name)} to start…\x1b[0m\r\n`);
-      await new Promise((ok) => setTimeout(ok, 3000));
+      await new Promise((ok) => setTimeout(ok, 2000));
       if (state.term !== entry) return;
     }
   }
+  if (last) term.write('\x1b[2mready\x1b[0m\r\n');
   EventsOn(`term:${entry.id}`, (b64) => term.write(fromB64(b64)));
   EventsOn(`term-closed:${entry.id}`, (reason) => {
     entry.closed = true;

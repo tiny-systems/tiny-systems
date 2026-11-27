@@ -91,6 +91,11 @@ h1, h2, h3 { margin: 0; font-weight: 600; letter-spacing: -0.01em; }
 .group .gdot { width: 6px; height: 6px; border-radius: 50%; background: var(--leaf); }
 .group .gdot.asleep { background: var(--text-3); }
 .group .gn { flex: 1; color: var(--text-2); }
+.group .gadd { display: grid; opacity: 0; place-items: center; width: 20px; height: 20px; margin: -4px -2px -4px 0; border: 0; border-radius: 6px; background: none; color: var(--text-3); cursor: pointer; }
+.group:hover .gadd, .group .gadd:focus-visible { opacity: 1; }
+.group .gadd:hover { background: var(--hover); color: var(--text); }
+.gempty { display: block; width: 100%; text-align: left; border: 0; background: none; color: var(--text-3); padding: 4px 8px 8px 21px; font-size: 13px; cursor: pointer; }
+.gempty:hover { color: var(--leaf); }
 .row {
   width: 100%; display: grid; grid-template-columns: 36px 1fr auto; gap: 1px 10px; align-items: center;
   border: 0; background: none; text-align: left; padding: 8px; border-radius: 9px; cursor: pointer;

@@ -85,3 +85,14 @@ test('a dialog closes from the dimmed area, asking first when something was type
   await confirm.getByRole('button', { name: 'Discard' }).click();
   await expect(dlg).toBeHidden();
 });
+
+test('each garden in the list has its own +, and a new helper shows its startup step', async ({ page }) => {
+  await page.goto('/');
+  const group = page.locator('#rows .group').first();
+  await group.hover();
+  await group.locator('.gadd').click();
+  await expect(page.locator('#new-dialog')).toBeVisible();
+  await page.locator('#new-form textarea[name=task]').fill('Tidy the README');
+  await page.getByRole('button', { name: 'Start helper' }).click();
+  await expect(page.locator('#pane .working')).toContainText('Waiting for a machine');
+});

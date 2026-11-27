@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.1.3
+
+- A starting helper shows what it's waiting on (a machine, the first
+  download of the helper image, the workspace) in its chat and terminal,
+  and the terminal connects by itself once the helper runs, instead of
+  failing with "does not have a host assigned".
+- Each garden in the helper list has its own + (on hover), and an empty
+  garden offers **Start a helper**.
+
 ## 0.1.2
 
 - New helpers start again: the app asked for a helper image tagged with

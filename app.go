@@ -12,6 +12,7 @@ import (
 	"runtime/debug"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -48,6 +49,9 @@ type Row struct {
 	Exit     *int     `json:"exit,omitempty"`
 	Attach   bool     `json:"attachable"`
 	Tags     []string `json:"tags,omitempty"`
+	// Stage is the startup step of a helper that isn't running yet:
+	// "waiting for a machine", "downloading agent:0.18.0 …".
+	Stage string `json:"stage,omitempty"`
 }
 
 // Asking is a question an agent is waiting on.
@@ -193,7 +197,23 @@ func (a *App) Fleet(t Target) Fleet {
 		f.ErrorText = err.Error()
 		return f
 	}
-	return fleetFrom(f, *snap)
+	f = fleetFrom(f, *snap)
+	for i, r := range snap.Rows {
+		if starting(r) {
+			f.Rows[i].Stage, _ = podStage(ctx, store, r.Pod)
+		}
+	}
+	return f
+}
+
+// starting is a helper on its way up: not running, not paused, not
+// stuck or finished.
+func starting(r fleet.Row) bool {
+	switch r.Phase {
+	case "Running", "stuck", "Failed", "Done":
+		return false
+	}
+	return !r.Paused
 }
 
 // fleetFrom turns one read of the cluster into what the window shows.
@@ -296,14 +316,31 @@ func (a *App) OpenTerminal(t Target, session string, cols, rows int) (string, er
 	if err != nil {
 		return "", err
 	}
-	pod := ""
-	for _, r := range snap.Rows {
-		if r.Name == session {
-			pod = r.Pod
+	var row *fleet.Row
+	for i := range snap.Rows {
+		if snap.Rows[i].Name == session {
+			row = &snap.Rows[i]
 		}
 	}
-	if pod == "" {
-		return "", fmt.Errorf("session %s has no running pod to attach to", session)
+	if row == nil {
+		return "", fmt.Errorf("%s is gone", session)
+	}
+	pod := row.Pod
+	switch row.Phase {
+	case "stuck", "Failed", "Done":
+		if row.Message != "" {
+			return "", errors.New(row.Message)
+		}
+		return "", fmt.Errorf("%s isn't running (%s)", session, strings.ToLower(row.Phase))
+	}
+	// Attaching before the agent container runs fails ("does not have a
+	// host assigned", "container not found"): say which step it's on so
+	// the window can show it and try again.
+	ctx, cancel = context.WithTimeout(a.ctx, 10*time.Second)
+	stage, ready := podStage(ctx, store, pod)
+	cancel()
+	if !ready {
+		return "", errors.New(startingPrefix + stage)
 	}
 
 	a.mu.Lock()
