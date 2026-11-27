@@ -82,7 +82,15 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: app
-      - run: mkdir -p build/bin && tar -C build/bin -xzf app.tgz
+      # The artifact is build output: take only the app, nothing outside it.
+      - name: Unpack app
+        run: |
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]] || { echo "bad version: $VERSION"; exit 1; }
+          if tar -tzf app.tgz | grep -vE '^Tiny Systems\.app(/|$)' | grep -q .; then echo "unexpected paths in artifact"; exit 1; fi
+          if tar -tzf app.tgz | grep -q '\.\./'; then echo "path traversal in artifact"; exit 1; fi
+          rm -rf build/bin && mkdir -p build/bin
+          tar -C build/bin -xzf app.tgz 'Tiny Systems.app'
+          if find "build/bin/Tiny Systems.app" -type l -lname '/*' | grep -q .; then echo "absolute symlink in app"; exit 1; fi
 
       - name: Signing keychain
         env:
@@ -110,12 +118,11 @@ jobs:
           export NOTARY_KEY_PATH="$RUNNER_TEMP/notary.p8"
           echo "$P8" | base64 --decode > "$NOTARY_KEY_PATH"
           scripts/release-mac.sh sign "$VERSION"
-          echo "DMG=$(ls build/bin/*.dmg)" >> "$GITHUB_ENV"
 
       - uses: actions/upload-artifact@v4
         with:
           name: dmg
-          path: ${{ env.DMG }}
+          path: build/bin/Tiny-Systems-${{ env.VERSION }}.dmg
 
       - name: Release
         if: startsWith(github.ref, 'refs/tags/')
@@ -123,7 +130,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release view "$GITHUB_REF_NAME" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 || gh release create "$GITHUB_REF_NAME" -R "$GITHUB_REPOSITORY" --title "Tiny Systems $GITHUB_REF_NAME" --generate-notes
-          gh release upload "$GITHUB_REF_NAME" "$DMG" -R "$GITHUB_REPOSITORY" --clobber
+          gh release upload "$GITHUB_REF_NAME" "build/bin/Tiny-Systems-$VERSION.dmg" -R "$GITHUB_REPOSITORY" --clobber
 
       - name: Clean up
         if: always()
