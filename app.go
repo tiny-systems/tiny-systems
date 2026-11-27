@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 	"sort"
 	"strconv"
 	"sync"
@@ -87,9 +88,10 @@ func NewApp() *App {
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 	openLog()
-	fleet.SetVersion(version)
+	fleet.SetVersion(engineVersion()) // helper images are tagged with tiny's version, not the app's
 	includeDefaultKubeconfig()
 	installReopen()
+	startUpdater(loadSettings())
 	if !demoOn() && loadSettings().StartVMs {
 		go func() { defer guard("start VMs", nil); a.startVMs() }()
 	}
@@ -451,4 +453,25 @@ func shortAge(d time.Duration) string {
 	default:
 		return fmt.Sprintf("%dd", int(d.Hours()/24))
 	}
+}
+
+// engineVersion is the tiny release this app is built against ("v0.18.0"),
+// read from the build. Helper, sidecar and runtime images carry tiny's
+// version, so that's what new helpers ask for; the app's own version
+// (0.1.x) names no image. Empty for a build against a local checkout,
+// and then tiny keeps its default tag.
+func engineVersion() string {
+	bi, ok := debug.ReadBuildInfo()
+	if !ok {
+		return ""
+	}
+	for _, d := range bi.Deps {
+		if d.Path == "github.com/tiny-systems/tiny" {
+			if d.Replace != nil {
+				return d.Replace.Version
+			}
+			return d.Version
+		}
+	}
+	return ""
 }

@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"regexp"
 	"testing"
 	"time"
 
@@ -108,5 +109,14 @@ func TestInboxTimeFallsBack(t *testing.T) {
 	}
 	if got := inboxTime(fmt.Sprintf("m-%d", t0.UnixNano()), time.Time{}); got != "2026-01-02T03:04:05Z" {
 		t.Fatalf("got %q", got)
+	}
+}
+
+func TestEngineVersionNamesTiny(t *testing.T) {
+	// Tests run with the module's real dependencies, so this is the tiny
+	// version from go.mod: a release tag, never the app's own version.
+	v := engineVersion()
+	if !regexp.MustCompile(`^v\d+\.\d+\.\d+$`).MatchString(v) {
+		t.Fatalf("engineVersion() = %q, want tiny's release tag", v)
 	}
 }
