@@ -49,6 +49,9 @@ type InstallRequest struct {
 	// CopyFrom, when set, copies the agent credentials (tiny-agent-env)
 	// from an existing fleet, so sessions can sign in straight away.
 	CopyFrom *Target `json:"copyFrom,omitempty"`
+	// Token, when set instead, is a pasted Claude key to sign helpers in
+	// with. Stored like SignIn stores it; never logged.
+	Token string `json:"token,omitempty"`
 }
 
 // InstallEvent is one line of progress, sent as "install:event".
@@ -100,7 +103,8 @@ func (a *App) Install(req InstallRequest) error {
 				emit(InstallEvent{Step: "connect", Level: "hostkey", Text: err.Error(), Data: map[string]string{"fingerprint": uh.Fingerprint}})
 				return
 			}
-			emit(InstallEvent{Step: "done", Level: "error", Text: err.Error()})
+			emit(InstallEvent{Step: "log", Level: "log", Text: err.Error()})
+			emit(InstallEvent{Step: "done", Level: "error", Text: plainError(err)})
 			return
 		}
 		emit(InstallEvent{Step: "done", Level: "ok", Text: "ready: " + t.Name, Data: t})
@@ -214,8 +218,21 @@ func (a *App) install(ctx context.Context, req InstallRequest, emit func(Install
 		} else {
 			say("credentials", "ok", "credentials copied")
 		}
+	} else if tok := strings.TrimSpace(req.Token); tok != "" {
+		key, err := claudeKey(tok)
+		if err == nil {
+			var c *fleet.Client
+			if c, err = fleet.Connect(t.Context, t.Namespace); err == nil {
+				err = storeClaudeToken(ctx, c, key, tok)
+			}
+		}
+		if err != nil {
+			say("credentials", "warn", "couldn't sign helpers in: %v; add the key from Gardens", err)
+		} else {
+			say("credentials", "ok", "helpers signed in")
+		}
 	} else {
-		say("credentials", "warn", "no agent credentials yet: run `tiny -p %s setup`, or copy them from another fleet", req.Name)
+		say("credentials", "warn", "helpers aren't signed in yet: add a Claude key from Gardens")
 	}
 	a.mu.Lock()
 	delete(a.stores, t.Context+"/"+t.Namespace)

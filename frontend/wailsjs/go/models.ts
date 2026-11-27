@@ -258,6 +258,7 @@ export namespace main {
 	    apiPort: number;
 	    trustFingerprint: string;
 	    copyFrom?: Target;
+	    token?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new InstallRequest(source);
@@ -277,6 +278,7 @@ export namespace main {
 	        this.apiPort = source["apiPort"];
 	        this.trustFingerprint = source["trustFingerprint"];
 	        this.copyFrom = this.convertValues(source["copyFrom"], Target);
+	        this.token = source["token"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -304,6 +306,7 @@ export namespace main {
 	    diskGB: number;
 	    gvisor: boolean;
 	    copyFrom?: Target;
+	    token?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new LocalInstallRequest(source);
@@ -317,6 +320,7 @@ export namespace main {
 	        this.diskGB = source["diskGB"];
 	        this.gvisor = source["gvisor"];
 	        this.copyFrom = this.convertValues(source["copyFrom"], Target);
+	        this.token = source["token"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

@@ -513,6 +513,9 @@ function gardenRow(g, f, h) {
     note.append(text);
     if (act === 'copy') {
       const others = state.targets.filter((x) => keyOf(x) !== keyOf(t) && !state.fleets[keyOf(x)]?.error && x.context !== '__demo__');
+      const add = el('button', 'btn small', 'Add key');
+      add.onclick = () => signInDialog(t);
+      note.append(add);
       if (others.length) {
         const sel = el('select');
         for (const o of others) sel.append(new Option(`from ${gardenName(o)}`, keyOf(o)));
@@ -630,6 +633,46 @@ function field(label, name, attrs = {}, opt) {
   return l;
 }
 
+// keyBlock is the "sign helpers in" field: a pasted Claude key, with the
+// two ways to get one. The key goes straight to the garden.
+function keyBlock() {
+  const box = el('div', 'keyblock');
+  box.append(field('Claude key', 'token', { type: 'password', autocomplete: 'off', placeholder: 'sk-ant-…' }));
+  const how = el('p', 'hint');
+  const cli = el('button', 'linkish', 'get one with Claude Code');
+  cli.type = 'button';
+  cli.onclick = () => App.ClaudeSetupToken().then(() => toast('Sign in in Terminal, then paste the key here')).catch((e) => toast(friendly(e), true));
+  const api = el('button', 'linkish', 'create an API key');
+  api.type = 'button';
+  api.onclick = () => BrowserOpenURL('https://console.anthropic.com/settings/keys');
+  how.append('Claude subscription: ', cli, '. Or ', api, ' in the Claude Console (billed per use).');
+  App.HasClaudeCLI().then((has) => {
+    if (!has) cli.replaceWith('install Claude Code and run ', el('code', '', 'claude setup-token'));
+  }).catch(() => {});
+  box.append(how);
+  return box;
+}
+
+function signInDialog(t) {
+  const form = el('form');
+  form.style.cssText = 'padding:0;display:flex;flex-direction:column;gap:13px';
+  const save = el('button', 'btn primary', 'Sign in');
+  save.type = 'submit';
+  form.append(keyBlock(), actionsRow(wbtn('Cancel', 'ghost', () => $('#wizard').close()), save));
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    save.disabled = true;
+    try {
+      await App.SignIn(t, new FormData(form).get('token') || '');
+      $('#wizard').close();
+      toast('Helpers in ' + gardenName(t) + ' are signed in');
+      state.health = {};
+      renderGardens();
+    } catch (err) { toast(friendly(err), true); save.disabled = false; }
+  };
+  wizard(el('h2', '', `Sign helpers in to ${gardenName(t)}`), el('p', 'lead', 'Helpers use your Claude account to work. The key stays in this garden.'), form);
+}
+
 function stepWhere() {
   const places = el('div', 'places');
   const mac = el('button', 'place');
@@ -658,9 +701,15 @@ function stepDetails(where) {
   const sel = el('select');
   sel.name = 'copyFrom';
   for (const [i, t] of state.targets.entries()) if (!state.fleets[keyOf(t)]?.error && t.context !== '__demo__') sel.append(new Option(`Same as ${gardenName(t)}`, String(i)));
+  sel.append(new Option('Paste a Claude key', 'paste'));
   sel.append(new Option('Later', ''));
+  if (sel.options.length === 2) sel.value = 'paste'; // no garden to copy from
   creds.append(sel);
-  form.append(creds);
+  const key = keyBlock();
+  const showKey = () => { key.hidden = sel.value !== 'paste'; };
+  sel.onchange = showKey;
+  showKey();
+  form.append(creds, key);
   const adv = el('details', 'advanced');
   adv.append(el('summary', '', 'Advanced'));
   const safety = el('label', 'check');
@@ -687,13 +736,14 @@ function stepDetails(where) {
   form.onsubmit = async (e) => {
     e.preventDefault();
     const d = Object.fromEntries(new FormData(form));
-    const copyFrom = d.copyFrom === '' ? null : state.targets[Number(d.copyFrom)];
+    const copyFrom = d.copyFrom === '' || d.copyFrom === 'paste' ? null : state.targets[Number(d.copyFrom)];
+    const token = d.copyFrom === 'paste' ? (d.token || '').trim() : '';
     if (where === 'mac') {
       { const l = await App.Local(); if (!l.lima) { toast(l.hint || 'This Mac can’t run gardens yet.', true); return; } }
-      grow({ local: true, name: slug(d.name), gvisor: !!d.gvisor, cpus: Number(d.cpus), memoryGB: Number(d.memoryGB), diskGB: Number(d.diskGB), copyFrom });
+      grow({ local: true, name: slug(d.name), gvisor: !!d.gvisor, cpus: Number(d.cpus), memoryGB: Number(d.memoryGB), diskGB: Number(d.diskGB), copyFrom, token });
     } else {
       grow({ name: slug(d.name), host: d.host.trim(), user: d.user.trim(), port: Number(d.port) || 22, keyFile: (d.keyFile || '').trim(), sudoPassword: d.sudoPassword || '',
-        namespace: (d.namespace || '').trim() || 'tiny', gvisor: !!d.gvisor, trustFingerprint: '', copyFrom });
+        namespace: (d.namespace || '').trim() || 'tiny', gvisor: !!d.gvisor, trustFingerprint: '', copyFrom, token });
     }
   };
   wizard(el('h2', '', where === 'mac' ? 'Garden on this Mac' : 'Garden on another computer'), form);
@@ -732,7 +782,7 @@ function grow(req) {
   acts.id = 'grow-actions';
   wizard(h, lead, list, trust, log, acts);
   const p = req.local
-    ? App.InstallLocal({ name: req.name, cpus: req.cpus, memoryGB: req.memoryGB, diskGB: req.diskGB, gvisor: req.gvisor, copyFrom: req.copyFrom })
+    ? App.InstallLocal({ name: req.name, cpus: req.cpus, memoryGB: req.memoryGB, diskGB: req.diskGB, gvisor: req.gvisor, copyFrom: req.copyFrom, token: req.token })
     : App.Install(req);
   p.catch((e) => finish(false, friendly(e)));
 }

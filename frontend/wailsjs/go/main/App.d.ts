@@ -7,6 +7,8 @@ export function Answer(arg1:main.Target,arg2:main.Asking,arg3:string):Promise<vo
 
 export function CheckUpdate():Promise<main.Update>;
 
+export function ClaudeSetupToken():Promise<void>;
+
 export function CloseTerminal(arg1:string):Promise<void>;
 
 export function Contexts():Promise<Array<string>>;
@@ -22,6 +24,8 @@ export function DemoSelect():Promise<string>;
 export function Fleet(arg1:main.Target):Promise<main.Fleet>;
 
 export function Gardens():Promise<Array<main.Garden>>;
+
+export function HasClaudeCLI():Promise<boolean>;
 
 export function Health(arg1:main.Target):Promise<fleet.Health>;
 
@@ -44,6 +48,8 @@ export function Resume(arg1:main.Target,arg2:string):Promise<void>;
 export function SendMessage(arg1:main.Target,arg2:string,arg3:string):Promise<void>;
 
 export function SetSandbox(arg1:main.Target,arg2:boolean):Promise<void>;
+
+export function SignIn(arg1:main.Target,arg2:string):Promise<void>;
 
 export function StartVM(arg1:string):Promise<void>;
 

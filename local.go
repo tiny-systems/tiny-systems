@@ -31,6 +31,7 @@ type LocalInstallRequest struct {
 	DiskGB   int     `json:"diskGB"`
 	GVisor   bool    `json:"gvisor"`
 	CopyFrom *Target `json:"copyFrom,omitempty"`
+	Token    string  `json:"token,omitempty"`
 }
 
 // VM is one of the app's Lima machines.
@@ -139,7 +140,8 @@ func (a *App) InstallLocal(req LocalInstallRequest) error {
 		defer cancel()
 		t, err := a.installLocal(ctx, bin, req, emit)
 		if err != nil {
-			emit(InstallEvent{Step: "done", Level: "error", Text: err.Error()})
+			emit(InstallEvent{Step: "log", Level: "log", Text: err.Error()})
+			emit(InstallEvent{Step: "done", Level: "error", Text: plainError(err)})
 			return
 		}
 		emit(InstallEvent{Step: "done", Level: "ok", Text: "ready: " + t.Name, Data: t})
@@ -177,7 +179,7 @@ func (a *App) installLocal(ctx context.Context, bin string, req LocalInstallRequ
 	ireq := InstallRequest{
 		Name: req.Name, Host: "127.0.0.1", Port: p, User: strings.Trim(user[1], `"`),
 		KeyFile: filepath.Join(limaHome(), "_config", "user"), Namespace: "tiny",
-		GVisor: req.GVisor, CopyFrom: req.CopyFrom, APIPort: freeAPIPort(),
+		GVisor: req.GVisor, CopyFrom: req.CopyFrom, Token: req.Token, APIPort: freeAPIPort(),
 	}
 	// The VM was created here a moment ago and is reached over localhost,
 	// so its host key is trusted on first sight, not shown for checking.

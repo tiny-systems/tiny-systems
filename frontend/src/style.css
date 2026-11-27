@@ -287,3 +287,8 @@ select { -webkit-appearance: none; appearance: none; cursor: pointer; padding-ri
 .update { position: fixed; left: 72px; bottom: 14px; z-index: 30; display: flex; align-items: center; gap: 10px; padding: 8px 8px 8px 14px; border-radius: 12px; background: var(--panel); border: 1px solid var(--line-2); box-shadow: 0 12px 32px -12px #000; color: var(--text); }
 .update[hidden] { display: none; }
 .update-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--leaf); box-shadow: 0 0 0 4px var(--leaf-bg); }
+
+.keyblock { display: flex; flex-direction: column; gap: 6px; }
+.keyblock[hidden] { display: none; }
+.linkish { background: none; border: 0; padding: 0; font: inherit; color: var(--leaf); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
+.hint code { font-family: var(--mono, ui-monospace); font-size: 11px; color: var(--text-2); }

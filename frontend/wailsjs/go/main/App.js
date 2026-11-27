@@ -10,6 +10,10 @@ export function CheckUpdate() {
   return window['go']['main']['App']['CheckUpdate']();
 }
 
+export function ClaudeSetupToken() {
+  return window['go']['main']['App']['ClaudeSetupToken']();
+}
+
 export function CloseTerminal(arg1) {
   return window['go']['main']['App']['CloseTerminal'](arg1);
 }
@@ -40,6 +44,10 @@ export function Fleet(arg1) {
 
 export function Gardens() {
   return window['go']['main']['App']['Gardens']();
+}
+
+export function HasClaudeCLI() {
+  return window['go']['main']['App']['HasClaudeCLI']();
 }
 
 export function Health(arg1) {
@@ -84,6 +92,10 @@ export function SendMessage(arg1, arg2, arg3) {
 
 export function SetSandbox(arg1, arg2) {
   return window['go']['main']['App']['SetSandbox'](arg1, arg2);
+}
+
+export function SignIn(arg1, arg2) {
+  return window['go']['main']['App']['SignIn'](arg1, arg2);
 }
 
 export function StartVM(arg1) {

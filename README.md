@@ -44,8 +44,11 @@ start with the Mac, so a stopped one shows **Start VM**.
 **On another computer:** give it a Linux computer's address and SSH access.
 The app checks the machine (warning when the disk is small), installs k3s
 and the gVisor sandbox, adds the cluster to `~/.kube/config` (keeping a
-backup), installs tiny's runtime with the egress allow-list on, and can
-copy the helpers' sign-in from another garden.
+backup), installs tiny's runtime with the egress allow-list on, and signs
+helpers in: with a Claude key you paste (a `claude setup-token` from a
+Claude subscription, or a Console API key), or the sign-in of another
+garden. The key goes straight into the garden, into the model gateway when
+that's on; the app never logs it.
 
 What it's careful about:
 
