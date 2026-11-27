@@ -39,8 +39,30 @@ function toast(text, bad = false) {
   t.textContent = text;
   t.classList.toggle('bad', bad);
   t.hidden = false;
+  replay(t);
   clearTimeout(toast.t);
   toast.t = setTimeout(() => { t.hidden = true; }, bad ? 6000 : 2400);
+}
+
+// Restart an element's CSS entrance animation (toast, nudges).
+function replay(node, cls = 'pop') {
+  node.classList.remove(cls);
+  void node.offsetWidth;
+  node.classList.add(cls);
+}
+
+// The list and chat are rebuilt on every refresh, so entrance motion goes
+// only on what is new since the last render: rows that appeared, rows whose
+// state changed, messages that arrived while you watched.
+const seen = { rows: null, kinds: new Map(), msgs: null, msgsFor: '' };
+
+// Looping animations (sway, glow, shimmer, spinners) would restart on every
+// rebuild and jump; a negative delay from the wall clock keeps each one on
+// a single continuous cycle across rebuilds.
+function syncPhase() {
+  const now = Date.now();
+  const st = document.documentElement.style;
+  for (const ms of [1000, 1800, 3200, 3600]) st.setProperty(`--ph-${ms}`, `-${now % ms}ms`);
 }
 
 function friendly(e) {
@@ -102,6 +124,7 @@ async function refresh() {
 /* Helper list */
 
 function renderList() {
+  syncPhase();
   const rows = allRows();
   const asks = rows.filter((r) => r.kind === 'ask').length;
   $('#count-ask').textContent = asks ? String(asks) : '';
@@ -122,11 +145,24 @@ function renderList() {
     for (const r of mine) out.push(rowEl(r));
   }
   if (!out.length) out.push(el('div', 'list-empty', q ? 'No helpers match.' : 'No helpers yet. Press + to start one.'));
+  const first = seen.rows === null;
+  const now = new Set();
+  for (const b of out) {
+    const id = b.dataset?.id;
+    if (!id) continue;
+    now.add(id);
+    if (!first && !seen.rows.has(id)) b.classList.add('enter');
+    else if (!first && seen.kinds.has(id) && seen.kinds.get(id) !== b.dataset.kind) b.classList.add('changed');
+    seen.kinds.set(id, b.dataset.kind);
+  }
+  seen.rows = new Set([...(seen.rows || []), ...now]);
   box.replaceChildren(...out);
 }
 
 function rowEl(r) {
   const b = el('button', 'row');
+  b.dataset.id = `${r.key}/${r.name}`;
+  b.dataset.kind = r.kind;
   b.setAttribute('aria-current', String(state.sel?.key === r.key && state.sel?.name === r.name));
   const name = el('div', 'rname');
   name.append(helperName(r.name));
@@ -166,6 +202,7 @@ async function loadConvo() {
 }
 
 function renderPane() {
+  syncPhase();
   const body = $('#pane-body');
   const r = selectedRow();
   if (!r) {
@@ -183,18 +220,19 @@ function renderPane() {
     renderChat(body.querySelector('.chat-inner'), r);
     return;
   }
+  const switched = body.dataset.for !== `${r.key}/${r.name}`;
   body.dataset.for = `${r.key}/${r.name}`;
   if (state.mode === 'terminal' && state.term && body.querySelector('.term-wrap')) { body.querySelector('.tabbar').replaceWith(tabbar(r)); return; }
   const parts = [tabbar(r)];
   if (state.mode === 'terminal') {
-    const wrap = el('div', 'term-wrap');
+    const wrap = el('div', 'term-wrap' + (switched ? ' enter' : ''));
     wrap.id = 'term-wrap';
     parts.push(wrap);
     body.replaceChildren(...parts);
     openTerminal(r, wrap);
     return;
   }
-  const chat = el('div', 'chat');
+  const chat = el('div', 'chat' + (switched ? ' enter' : ''));
   const inner = el('div', 'chat-inner');
   chat.append(inner);
   renderChat(inner, r);
@@ -256,7 +294,8 @@ function renderChat(inner, r) {
       const today = day === new Date().toDateString();
       out.push(el('div', 'day', `${today ? 'Today' : new Date(m.at).toLocaleDateString([], { month: 'short', day: 'numeric' })} ${clock(m.at)}`));
     }
-    if (m.from === 'you') { out.push(el('div', 'msg-you', m.text)); continue; }
+    const mid = `${m.at}|${m.from}|${m.question || ''}|${m.open ? 1 : 0}|${(m.text || '').slice(0, 60)}`;
+    if (m.from === 'you') { out.push(Object.assign(el('div', 'msg-you', m.text), { _mid: mid })); continue; }
     const h = el('div', 'msg-helper');
     const meta = el('div', 'meta');
     meta.append(el('b', '', helperName(r.name)), clock(m.at));
@@ -287,6 +326,7 @@ function renderChat(inner, r) {
       text.append(m.text);
     }
     h.append(glyph(m.open ? 'ask' : 'grow', 16, { tile: true }), meta, text);
+    h._mid = mid;
     out.push(h);
   }
   if (r.kind === 'grow' && !r.question) {
@@ -297,6 +337,16 @@ function renderChat(inner, r) {
   if (r.kind === 'fail' && r.message) out.push(el('div', 'problem', r.message));
   if (r.kind === 'seed') { const w = el('div', 'working'); w.append(el('span', 'spin'), 'Starting up…'); out.push(w); }
   if (!msgs.length && r.kind !== 'grow' && r.kind !== 'seed') out.push(el('div', 'day', 'No messages yet.'));
+  const forId = `${r.key}/${r.name}`;
+  const fresh = seen.msgsFor !== forId;
+  const ids = new Set();
+  for (const n of out) {
+    if (!n._mid) continue;
+    ids.add(n._mid);
+    if (!fresh && !seen.msgs.has(n._mid)) n.classList.add('enter');
+  }
+  seen.msgs = ids;
+  seen.msgsFor = forId;
   inner.replaceChildren(...out);
 }
 

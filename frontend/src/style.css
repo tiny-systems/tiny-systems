@@ -123,8 +123,8 @@ h1, h2, h3 { margin: 0; font-weight: 600; letter-spacing: -0.01em; }
 .glyph .g-rest { stroke: #5E6B62; }
 .glyph .g-restleaf { fill: #6E7C72; }
 @media (prefers-reduced-motion: no-preference) {
-  .tile-grow .glyph { transform-origin: 50% 85%; animation: sway 3.6s ease-in-out infinite; }
-  .tile-ask .glyph { animation: glow 1.8s ease-in-out infinite; }
+  .tile-grow .glyph { transform-origin: 50% 85%; animation: sway 3.6s ease-in-out var(--ph-3600, 0s) infinite; }
+  .tile-ask .glyph { animation: glow 1.8s ease-in-out var(--ph-1800, 0s) infinite; }
 }
 @keyframes sway { 0%,100% { transform: rotate(-5deg); } 50% { transform: rotate(5deg); } }
 @keyframes glow { 0%,100% { filter: none; } 50% { filter: drop-shadow(0 0 4px #F4B44C); } }
@@ -165,7 +165,7 @@ h1, h2, h3 { margin: 0; font-weight: 600; letter-spacing: -0.01em; }
 .ask-card .answer { color: var(--text-2); font-size: 12px; margin-top: 4px; }
 .ask-card .answer b { color: var(--leaf); font-weight: 600; }
 .working { display: flex; align-items: center; gap: 8px; color: var(--text-2); }
-.working .spin { width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--line-2); border-top-color: var(--leaf); animation: spin 1s linear infinite; }
+.working .spin { width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--line-2); border-top-color: var(--leaf); animation: spin 1s linear var(--ph-1000, 0s) infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .problem { background: var(--red-bg); color: #F6B3A8; border-radius: 12px; padding: 9px 12px; user-select: text; }
 
@@ -292,3 +292,63 @@ select { -webkit-appearance: none; appearance: none; cursor: pointer; padding-ri
 .keyblock[hidden] { display: none; }
 .linkish { background: none; border: 0; padding: 0; font: inherit; color: var(--leaf); cursor: pointer; text-decoration: underline; text-underline-offset: 2px; }
 .hint code { font-family: var(--mono, ui-monospace); font-size: 11px; color: var(--text-2); }
+
+/* Motion. Small and quick: things answer the pointer, new things arrive
+   softly, work in progress shimmers. Nothing moves with reduced motion. */
+@media (prefers-reduced-motion: no-preference) {
+  :root { --ease: cubic-bezier(.2, .8, .2, 1); --spring: cubic-bezier(.34, 1.56, .64, 1); }
+  .rail-btn, .icon-btn, .btn, .row, .seg button, .filters button, .menu button, .place, .send, .chipbtn, .linkish,
+  .search, .composer-inner, .field input, .field select, .field textarea, .gv-row {
+    transition: background-color .16s var(--ease), color .16s var(--ease), border-color .16s var(--ease),
+      box-shadow .2s var(--ease), transform .18s var(--spring), opacity .16s var(--ease);
+  }
+  .btn:active:not(:disabled), .icon-btn:active, .rail-btn:active, .seg button:active:not(:disabled),
+  .menu button:active, .place:active { transform: scale(.97); }
+  .row:active { transform: scale(.985); }
+
+  /* Barely bigger on hover. */
+  .row .tile, .msg-helper .tile { transition: transform .22s var(--spring); }
+  .row:hover .tile { transform: scale(1.06); }
+  .icon-btn.round:hover, .send:not(:disabled):hover { transform: scale(1.06); }
+  .icon-btn.round svg { transition: transform .3s var(--spring); }
+  .icon-btn.round:hover svg { transform: rotate(90deg); }
+  .place:hover { transform: translateY(-1px); box-shadow: 0 8px 20px -12px #000; }
+  .ask-card .btn:hover { transform: translateY(-1px); }
+  .composer-inner:focus-within { border-color: #46D87A40; box-shadow: 0 0 0 3px #46D87A12; }
+  .search:focus-within { box-shadow: 0 0 0 1px #46D87A40; }
+  .send:not(:disabled) { animation: ready .28s var(--spring); }
+
+  /* New rows, changed rows, new messages. */
+  .row.enter { animation: rise .32s var(--ease) both; }
+  .row.changed { animation: flash 1.2s var(--ease); }
+  .msg-you.enter { animation: rise .3s var(--ease) both; transform-origin: 100% 100%; }
+  .msg-helper.enter { animation: rise .34s var(--ease) both; }
+  .chat.enter, .term-wrap.enter { animation: fade .2s var(--ease); }
+  .gardens-view { animation: fade .2s var(--ease); }
+
+  /* Work in progress: a slow light passes over the words. */
+  .working, .row[data-kind="grow"] .preview, .status.grow {
+    background: linear-gradient(100deg, var(--text-2) 40%, var(--text) 50%, var(--text-2) 60%) 0 0 / 250% 100%;
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+    animation: shimmer 3.2s linear var(--ph-3200, 0s) infinite;
+  }
+  .status.grow .sd { animation: breathe 3.2s ease-in-out var(--ph-3200, 0s) infinite; }
+
+  /* Things that open. */
+  .dialog[open] { animation: open .22s var(--ease); }
+  .dialog[open]::backdrop { animation: fade .22s var(--ease); }
+  .menu:not([hidden]) { animation: drop .14s var(--ease); transform-origin: top right; }
+  .toast.pop { animation: toast .26s var(--spring); }
+  .update:not([hidden]) { animation: rise .4s var(--ease) both; }
+  .disk i { transition: width .6s var(--ease); }
+}
+
+@keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes open { from { opacity: 0; transform: scale(.97) translateY(4px); } to { opacity: 1; transform: none; } }
+@keyframes drop { from { opacity: 0; transform: scale(.96) translateY(-3px); } to { opacity: 1; transform: none; } }
+@keyframes toast { from { opacity: 0; transform: translate(-50%, 8px) scale(.96); } to { opacity: 1; transform: translate(-50%, 0); } }
+@keyframes flash { 0% { background-color: #46D87A1A; } 100% { background-color: transparent; } }
+@keyframes ready { from { transform: scale(.85); } to { transform: none; } }
+@keyframes shimmer { from { background-position: 100% 0; } to { background-position: -150% 0; } }
+@keyframes breathe { 0%,100% { box-shadow: 0 0 0 3px #46D87A26; } 50% { box-shadow: 0 0 0 5px #46D87A10; } }
