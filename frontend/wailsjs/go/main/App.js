@@ -30,6 +30,10 @@ export function CopyCredentials(arg1, arg2) {
   return window['go']['main']['App']['CopyCredentials'](arg1, arg2);
 }
 
+export function CopyDiagnostics() {
+  return window['go']['main']['App']['CopyDiagnostics']();
+}
+
 export function Delete(arg1, arg2) {
   return window['go']['main']['App']['Delete'](arg1, arg2);
 }
@@ -38,12 +42,20 @@ export function DemoSelect() {
   return window['go']['main']['App']['DemoSelect']();
 }
 
+export function Diagnostics() {
+  return window['go']['main']['App']['Diagnostics']();
+}
+
 export function Fleet(arg1) {
   return window['go']['main']['App']['Fleet'](arg1);
 }
 
 export function Gardens() {
   return window['go']['main']['App']['Gardens']();
+}
+
+export function GetSettings() {
+  return window['go']['main']['App']['GetSettings']();
 }
 
 export function HasClaudeCLI() {
@@ -86,8 +98,16 @@ export function Resume(arg1, arg2) {
   return window['go']['main']['App']['Resume'](arg1, arg2);
 }
 
+export function SaveSettings(arg1) {
+  return window['go']['main']['App']['SaveSettings'](arg1);
+}
+
 export function SendMessage(arg1, arg2, arg3) {
   return window['go']['main']['App']['SendMessage'](arg1, arg2, arg3);
+}
+
+export function SetBadge(arg1) {
+  return window['go']['main']['App']['SetBadge'](arg1);
 }
 
 export function SetSandbox(arg1, arg2) {

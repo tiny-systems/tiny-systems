@@ -136,6 +136,10 @@
     CloseTerminal: async (id) => { terms.delete(id); },
 
     Notify: async () => {},
+    SetBadge: async () => {},
+    GetSettings: async () => ({ openAtLogin: false, startVMs: true, checkUpdates: true }),
+    SaveSettings: notInDemo,
+    CopyDiagnostics: notInDemo,
     SetSandbox: async () => {},
     CopyCredentials: notInDemo,
     SignIn: notInDemo,

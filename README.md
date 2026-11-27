@@ -30,7 +30,14 @@ picked.
   each one is doing (disk, memory, runtime version, sign-in), with the fix
   beside what's wrong: start a stopped VM, upgrade the runtime, copy the
   sign-in from another garden, turn the sandbox on.
-- **Notifications** when a helper starts waiting for you.
+- **Notifications** when a helper starts waiting for you, and the count on
+  the Dock icon. Closing the window keeps the app running so helpers can
+  still reach you; click the Dock icon to bring it back, ⌘Q to quit.
+- **Settings** (the ? button): open at login, start this Mac's gardens
+  when the app opens, update checks. **Copy diagnostics** puts a report
+  for support on the clipboard: versions, VMs, each garden's health and
+  the end of the log (`~/Library/Logs/Tiny Systems/app.log`). It holds no
+  keys.
 - **Updates.** The app checks GitHub for a newer release a few times a day
   and offers a Download button. It never installs anything by itself.
 

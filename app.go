@@ -86,8 +86,13 @@ func NewApp() *App {
 
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
+	openLog()
 	fleet.SetVersion(version)
 	includeDefaultKubeconfig()
+	installReopen()
+	if !demoOn() && loadSettings().StartVMs {
+		go a.startVMs()
+	}
 }
 
 // includeDefaultKubeconfig keeps ~/.kube/config in view when KUBECONFIG

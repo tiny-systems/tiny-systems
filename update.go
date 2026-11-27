@@ -26,6 +26,9 @@ type Update struct {
 // installs anything: the window offers the link and the person decides.
 // A development build, or no network, reports nothing available.
 func (a *App) CheckUpdate() Update {
+	if !loadSettings().CheckUpdates {
+		return Update{}
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	u, err := checkUpdate(ctx, version)

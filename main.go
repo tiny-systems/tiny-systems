@@ -31,7 +31,10 @@ func main() {
 		BackgroundColour: &options.RGBA{R: 14, G: 15, B: 17, A: 255},
 		OnStartup:        app.startup,
 		OnShutdown:       app.shutdown,
-		Bind:             []interface{}{app},
+		// Closing the window keeps the app running, so helpers can still
+		// reach you; the Dock icon brings it back, Cmd+Q quits.
+		HideWindowOnClose: true,
+		Bind:              []interface{}{app},
 		Mac: &mac.Options{
 			TitleBar:             mac.TitleBarHiddenInset(),
 			WebviewIsTransparent: false,

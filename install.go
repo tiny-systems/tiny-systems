@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"os"
 	"path/filepath"
@@ -93,7 +94,10 @@ func (a *App) Install(req InstallRequest) error {
 		req.APIPort = 6443
 	}
 	go func() {
-		emit := func(e InstallEvent) { runtime.EventsEmit(a.ctx, "install:event", e) }
+		emit := func(e InstallEvent) {
+			log.Printf("setup %s %s: %s", e.Step, e.Level, e.Text)
+			runtime.EventsEmit(a.ctx, "install:event", e)
+		}
 		ctx, cancel := context.WithTimeout(a.ctx, 30*time.Minute)
 		defer cancel()
 		t, err := a.install(ctx, req, emit)

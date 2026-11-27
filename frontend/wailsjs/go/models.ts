@@ -436,6 +436,22 @@ export namespace main {
 	    }
 	}
 	
+	export class Settings {
+	    startVMs: boolean;
+	    openAtLogin: boolean;
+	    checkUpdates: boolean;
+	
+	    static createFrom(source: any = {}) {
+	        return new Settings(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.startVMs = source["startVMs"];
+	        this.openAtLogin = source["openAtLogin"];
+	        this.checkUpdates = source["checkUpdates"];
+	    }
+	}
 	
 	export class Update {
 	    available: boolean;

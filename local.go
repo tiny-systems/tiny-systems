@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net"
 	"os"
 	"os/exec"
@@ -135,7 +136,10 @@ func (a *App) InstallLocal(req LocalInstallRequest) error {
 		req.DiskGB = 40
 	}
 	go func() {
-		emit := func(e InstallEvent) { runtime.EventsEmit(a.ctx, "install:event", e) }
+		emit := func(e InstallEvent) {
+			log.Printf("setup %s %s: %s", e.Step, e.Level, e.Text)
+			runtime.EventsEmit(a.ctx, "install:event", e)
+		}
 		ctx, cancel := context.WithTimeout(a.ctx, 40*time.Minute)
 		defer cancel()
 		t, err := a.installLocal(ctx, bin, req, emit)

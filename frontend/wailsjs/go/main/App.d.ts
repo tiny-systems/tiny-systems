@@ -17,13 +17,19 @@ export function Conversation(arg1:main.Target,arg2:string):Promise<Array<main.Me
 
 export function CopyCredentials(arg1:main.Target,arg2:main.Target):Promise<void>;
 
+export function CopyDiagnostics():Promise<void>;
+
 export function Delete(arg1:main.Target,arg2:string):Promise<void>;
 
 export function DemoSelect():Promise<string>;
 
+export function Diagnostics():Promise<string>;
+
 export function Fleet(arg1:main.Target):Promise<main.Fleet>;
 
 export function Gardens():Promise<Array<main.Garden>>;
+
+export function GetSettings():Promise<main.Settings>;
 
 export function HasClaudeCLI():Promise<boolean>;
 
@@ -45,7 +51,11 @@ export function Pause(arg1:main.Target,arg2:string):Promise<void>;
 
 export function Resume(arg1:main.Target,arg2:string):Promise<void>;
 
+export function SaveSettings(arg1:main.Settings):Promise<void>;
+
 export function SendMessage(arg1:main.Target,arg2:string,arg3:string):Promise<void>;
+
+export function SetBadge(arg1:number):Promise<void>;
 
 export function SetSandbox(arg1:main.Target,arg2:boolean):Promise<void>;
 

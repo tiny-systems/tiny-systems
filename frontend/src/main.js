@@ -543,7 +543,47 @@ function setView(v) {
   if (v === 'gardens') { closeTerminal(); renderGardens(); } else { renderPane(); }
 }
 for (const b of document.querySelectorAll('.rail-btn[data-view]')) b.onclick = () => setView(b.dataset.view);
-$('#help').onclick = () => BrowserOpenURL('https://tinysystems.io/docs/');
+$('#help').onclick = (e) => {
+  e.stopPropagation();
+  openMenu($('#help'), [
+    ['Help and docs', '', () => BrowserOpenURL('https://tinysystems.dev/docs/')],
+    ['Settings', '', openSettings],
+    ['Copy diagnostics', '', () => App.CopyDiagnostics().then(() => toast('Diagnostics copied: paste them into your message to support')).catch((err) => toast(friendly(err), true))],
+  ]);
+};
+
+function openSettings() {
+  App.GetSettings().then((cur) => {
+    const form = el('form');
+    form.style.cssText = 'padding:0;display:flex;flex-direction:column;gap:12px';
+    const check = (name, label, on) => {
+      const l = el('label', 'check');
+      const c = el('input');
+      c.type = 'checkbox'; c.name = name; c.checked = !!on;
+      l.append(c, label);
+      return l;
+    };
+    form.append(
+      check('openAtLogin', 'Open Tiny Systems when you log in', cur.openAtLogin),
+      check('startVMs', 'Start this Mac’s gardens when the app opens', cur.startVMs),
+      check('checkUpdates', 'Tell me when a new version is out', cur.checkUpdates),
+      el('p', 'hint', 'Closing the window keeps Tiny Systems running, so helpers can still reach you. Quit with ⌘Q.'),
+    );
+    const save = el('button', 'btn primary', 'Save');
+    save.type = 'submit';
+    form.append(actionsRow(wbtn('Cancel', 'ghost', () => $('#wizard').close()), save));
+    form.onsubmit = async (ev) => {
+      ev.preventDefault();
+      const d = new FormData(form);
+      try {
+        await App.SaveSettings({ openAtLogin: d.has('openAtLogin'), startVMs: d.has('startVMs'), checkUpdates: d.has('checkUpdates') });
+        $('#wizard').close();
+        toast('Settings saved');
+      } catch (err) { toast(friendly(err), true); }
+    };
+    wizard(el('h2', '', 'Settings'), form);
+  }).catch((err) => toast(friendly(err), true));
+}
 
 function renderBadge() {
   const n = allRows().filter((r) => r.kind === 'ask').length;
@@ -551,6 +591,7 @@ function renderBadge() {
   b.hidden = !n;
   b.textContent = String(n);
   document.title = n ? `Tiny Systems (${n})` : 'Tiny Systems';
+  if (renderBadge.n !== n) { renderBadge.n = n; App.SetBadge(n).catch(() => {}); }
 }
 
 /* Filters and search */
@@ -841,6 +882,8 @@ EventsOn('install:event', (e) => {
   const cls = e.level === 'info' ? 'active' : e.level === 'ok' ? 'ok' : e.level;
   markStep(s, cls, e.level === 'warn' ? e.text.replace(/`/g, '') : '');
 });
+
+EventsOn('vms:started', () => { state.health = {}; refresh(); });
 
 async function reloadTargets() {
   state.targets = (await App.Targets()) || [];
