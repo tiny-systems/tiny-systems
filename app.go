@@ -91,7 +91,7 @@ func (a *App) startup(ctx context.Context) {
 	includeDefaultKubeconfig()
 	installReopen()
 	if !demoOn() && loadSettings().StartVMs {
-		go a.startVMs()
+		go func() { defer guard("start VMs", nil); a.startVMs() }()
 	}
 }
 
@@ -320,6 +320,7 @@ func (a *App) OpenTerminal(t Target, session string, cols, rows int) (string, er
 
 	out := &eventWriter{ctx: a.ctx, event: "term:" + id}
 	go func() {
+		defer guard("terminal", func(error) { runtime.EventsEmit(a.ctx, "term-closed:"+id, "the terminal stopped on an internal error") })
 		err := store.AttachStream(tctx, pod, inR, out, sizes)
 		reason := ""
 		if err != nil && !errors.Is(err, context.Canceled) {

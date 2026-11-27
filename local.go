@@ -140,6 +140,9 @@ func (a *App) InstallLocal(req LocalInstallRequest) error {
 			log.Printf("setup %s %s: %s", e.Step, e.Level, e.Text)
 			runtime.EventsEmit(a.ctx, "install:event", e)
 		}
+		defer guard("setup", func(err error) {
+			emit(InstallEvent{Step: "done", Level: "error", Text: "setup stopped on an internal error; Copy diagnostics has the details"})
+		})
 		ctx, cancel := context.WithTimeout(a.ctx, 40*time.Minute)
 		defer cancel()
 		t, err := a.installLocal(ctx, bin, req, emit)
