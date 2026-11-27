@@ -29,7 +29,7 @@ permissions:
 jobs:
   build:
     if: github.event_name == 'push' || github.ref == 'refs/heads/main'
-    runs-on: macos-14
+    runs-on: macos-15
     timeout-minutes: 40
     outputs:
       version: ${{ steps.v.outputs.version }}
@@ -62,7 +62,7 @@ jobs:
 
   sign:
     needs: build
-    runs-on: macos-14
+    runs-on: macos-15
     timeout-minutes: 45
     environment: release
     permissions:
