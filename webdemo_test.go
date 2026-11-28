@@ -18,6 +18,8 @@ type webDemo struct {
 	Health        fleet.Health         `json:"health"`
 	Conversations map[string][]Message `json:"conversations"`
 	Shown         map[string]ShownFile `json:"shown"`
+	Changes       map[string]Changes   `json:"changes"`
+	Patches       map[string]string    `json:"patches"`
 }
 
 func buildWebDemo() webDemo {
@@ -29,11 +31,14 @@ func buildWebDemo() webDemo {
 		Gardens:       []Garden{{Target: demoTarget(), Where: "This Mac", Local: true, VMStatus: "Running"}},
 		Conversations: map[string][]Message{},
 		Shown:         map[string]ShownFile{},
+		Changes:       map[string]Changes{},
+		Patches:       demoPatches,
 	}
 	d.Shown[demoChart], _ = demoShown(demoChart)
 	d.Health, _ = a.Health(demoTarget())
 	for _, r := range f.Rows {
 		d.Conversations[r.Name] = demoConversation(r.Name)
+		d.Changes[r.Name] = demoChanges(r.Name)
 	}
 	return d
 }

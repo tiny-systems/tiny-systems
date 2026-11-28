@@ -35,6 +35,9 @@ func main() {
 		// reach you; the Dock icon brings it back, Cmd+Q quits.
 		HideWindowOnClose: true,
 		Bind:              []interface{}{app},
+		// Files dropped on the conversation go to the helper; the webview
+		// itself never opens a dropped file.
+		DragAndDrop: &options.DragAndDrop{EnableFileDrop: true, DisableWebViewDrop: true},
 		Mac: &mac.Options{
 			TitleBar:             mac.TitleBarHiddenInset(),
 			WebviewIsTransparent: false,

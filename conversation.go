@@ -30,6 +30,8 @@ type Message struct {
 	// File is a path in the helper's container that it showed you
 	// (show_user); Text is its caption. ReadShown fetches it.
 	File string `json:"file,omitempty"`
+	// Action is what allowing a permission question does (see Asking).
+	Action *Action `json:"action,omitempty"`
 }
 
 // Conversation returns a helper's history, oldest first.
@@ -81,6 +83,7 @@ func conversationFrom(se *agentsv1.Session, qs []agentsv1.Question) []Message {
 		out = append(out, Message{
 			From: "helper", Text: q.Spec.Text, At: q.CreationTimestamp.Format(time.RFC3339),
 			Question: q.Name, Options: q.Spec.Options, Answer: q.Status.Answer, Open: !q.Answered(), Idle: idle,
+			Action: actionOf(&q),
 		})
 	}
 	for _, f := range se.Status.Shown {

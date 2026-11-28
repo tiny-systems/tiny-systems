@@ -19,6 +19,7 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 	"k8s.io/client-go/tools/clientcmd"
 
+	agentsv1 "github.com/tiny-systems/tiny/api/v1alpha1"
 	"github.com/tiny-systems/tiny/pkg/fleet"
 )
 
@@ -63,6 +64,27 @@ type Asking struct {
 	// Idle marks Claude's "waiting for your input" card: the agent finished
 	// a turn and wants a message, rather than a tool asking a decision.
 	Idle bool `json:"idle"`
+	// Action is what allowing it does, when the helper asked permission
+	// for something (open a port, start a helper) rather than a decision.
+	Action *Action `json:"action,omitempty"`
+}
+
+// Action is a request a helper made that an answer carries out with your
+// own access: exposePort, createSession or enableFeature, with its details.
+type Action struct {
+	Type   string            `json:"type"`
+	Params map[string]string `json:"params,omitempty"`
+	// Result is what happened after it was allowed: a URL, a helper's
+	// name, or the error it hit.
+	Result string `json:"result,omitempty"`
+}
+
+// actionOf copies a question's action for the window.
+func actionOf(q *agentsv1.Question) *Action {
+	if q == nil || q.Spec.Action == nil {
+		return nil
+	}
+	return &Action{Type: q.Spec.Action.Type, Params: q.Spec.Action.Params, Result: q.Status.Result}
 }
 
 // Fleet is one read of a target.
@@ -227,7 +249,7 @@ func fleetFrom(f Fleet, snap fleet.Snapshot) Fleet {
 		}
 		if r.Question != nil {
 			row.Question = &Asking{Name: r.Question.Name, Session: r.Name, Text: r.Question.Spec.Text,
-				Options: r.Question.Spec.Options, Idle: r.Question.Spec.Reason == "notification"}
+				Options: r.Question.Spec.Options, Idle: r.Question.Spec.Reason == "notification", Action: actionOf(r.Question)}
 			f.NeedsYou++
 		}
 		if r.Phase == "Running" && !r.Paused {
@@ -236,7 +258,7 @@ func fleetFrom(f Fleet, snap fleet.Snapshot) Fleet {
 		f.Rows = append(f.Rows, row)
 	}
 	for _, q := range snap.Loose {
-		f.Loose = append(f.Loose, Asking{Name: q.Name, Text: q.Spec.Text, Options: q.Spec.Options})
+		f.Loose = append(f.Loose, Asking{Name: q.Name, Text: q.Spec.Text, Options: q.Spec.Options, Action: actionOf(&q)})
 		f.NeedsYou++
 	}
 	return f
@@ -280,19 +302,39 @@ type NewSessionRequest struct {
 	Agent string `json:"agent"`
 	Model string `json:"model"`
 	Image string `json:"image"`
+	CPU    string `json:"cpu"`
+	Memory string `json:"memory"`
+	// Sandbox is "" for the garden's default, "gvisor" for the gVisor
+	// sandbox, or "none" to run this helper without one.
+	Sandbox string `json:"sandbox"`
 }
 
 // NewSession starts a session and returns its name.
 func (a *App) NewSession(t Target, req NewSessionRequest) (string, error) {
 	var name string
 	err := a.withStore(t, func(ctx context.Context, s *fleet.Client) error {
-		se, err := s.Create(ctx, fleet.CreateOpts{Task: req.Task, Repo: req.Repo, Agent: req.Agent, Model: req.Model, Image: req.Image})
+		se, err := s.Create(ctx, fleet.CreateOpts{
+			Task: req.Task, Repo: req.Repo, Agent: req.Agent, Model: req.Model, Image: req.Image,
+			CPU: strings.TrimSpace(req.CPU), Memory: memoryQuantity(req.Memory), RuntimeClass: req.Sandbox,
+		})
 		if err == nil {
 			name = se.Name
 		}
 		return err
 	})
 	return name, err
+}
+
+// memoryQuantity reads the form's memory: a bare number means GB.
+func memoryQuantity(v string) string {
+	v = strings.TrimSpace(v)
+	if v == "" {
+		return ""
+	}
+	if _, err := strconv.ParseFloat(v, 64); err == nil {
+		return v + "Gi"
+	}
+	return v
 }
 
 // terminal is one attached session, its output streamed to the window as
@@ -306,43 +348,65 @@ type terminal struct {
 // OpenTerminal attaches to a session's tmux and returns the terminal's id.
 // Output arrives as base64 in "term:<id>" events; "term-closed:<id>" ends it.
 func (a *App) OpenTerminal(t Target, session string, cols, rows int) (string, error) {
-	store, err := a.store(t)
+	store, row, err := a.runningRow(t, session)
 	if err != nil {
 		return "", err
 	}
-	ctx, cancel := context.WithTimeout(a.ctx, 15*time.Second)
-	snap, err := store.Load(ctx)
-	cancel()
+	return a.stream(cols, rows, func(ctx context.Context, in io.Reader, out io.Writer, sizes chan fleet.TerminalSize) error {
+		return store.AttachStream(ctx, row.Pod, in, out, sizes)
+	}, nil), nil
+}
+
+// runningRow finds a helper whose agent container runs. A helper still
+// starting answers "starting: <step>" so the window can show the step and
+// try again; a stuck or finished one says why it can't attach.
+func (a *App) runningRow(t Target, session string) (*fleet.Client, *fleet.Row, error) {
+	store, row, err := a.findRow(t, session)
 	if err != nil {
-		return "", err
+		return nil, nil, err
 	}
-	var row *fleet.Row
-	for i := range snap.Rows {
-		if snap.Rows[i].Name == session {
-			row = &snap.Rows[i]
-		}
-	}
-	if row == nil {
-		return "", fmt.Errorf("%s is gone", session)
-	}
-	pod := row.Pod
 	switch row.Phase {
 	case "stuck", "Failed", "Done":
 		if row.Message != "" {
-			return "", errors.New(row.Message)
+			return nil, nil, errors.New(row.Message)
 		}
-		return "", fmt.Errorf("%s isn't running (%s)", session, strings.ToLower(row.Phase))
+		return nil, nil, fmt.Errorf("%s isn't running (%s)", session, strings.ToLower(row.Phase))
 	}
 	// Attaching before the agent container runs fails ("does not have a
 	// host assigned", "container not found"): say which step it's on so
 	// the window can show it and try again.
-	ctx, cancel = context.WithTimeout(a.ctx, 10*time.Second)
-	stage, ready := podStage(ctx, store, pod)
+	ctx, cancel := context.WithTimeout(a.ctx, 10*time.Second)
+	stage, ready := podStage(ctx, store, row.Pod)
 	cancel()
 	if !ready {
-		return "", errors.New(startingPrefix + stage)
+		return nil, nil, errors.New(startingPrefix + stage)
 	}
+	return store, row, nil
+}
 
+// findRow reads the garden and returns one helper's row.
+func (a *App) findRow(t Target, session string) (*fleet.Client, *fleet.Row, error) {
+	store, err := a.store(t)
+	if err != nil {
+		return nil, nil, err
+	}
+	ctx, cancel := context.WithTimeout(a.ctx, 15*time.Second)
+	defer cancel()
+	snap, err := store.Load(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	for i := range snap.Rows {
+		if snap.Rows[i].Name == session {
+			return store, &snap.Rows[i], nil
+		}
+	}
+	return nil, nil, fmt.Errorf("%s is gone", session)
+}
+
+// stream runs an interactive exec as a window terminal and returns its id.
+// done, when set, runs after the stream ends (removing an inspection pod).
+func (a *App) stream(cols, rows int, run func(context.Context, io.Reader, io.Writer, chan fleet.TerminalSize) error, done func()) string {
 	a.mu.Lock()
 	a.nextID++
 	id := strconv.Itoa(a.nextID)
@@ -360,7 +424,7 @@ func (a *App) OpenTerminal(t Target, session string, cols, rows int) (string, er
 	out := &eventWriter{ctx: a.ctx, event: "term:" + id}
 	go func() {
 		defer guard("terminal", func(error) { runtime.EventsEmit(a.ctx, "term-closed:"+id, "the terminal stopped on an internal error") })
-		err := store.AttachStream(tctx, pod, inR, out, sizes)
+		err := run(tctx, inR, out, sizes)
 		reason := ""
 		if err != nil && !errors.Is(err, context.Canceled) {
 			reason = err.Error()
@@ -368,9 +432,12 @@ func (a *App) OpenTerminal(t Target, session string, cols, rows int) (string, er
 		a.mu.Lock()
 		delete(a.terms, id)
 		a.mu.Unlock()
+		if done != nil {
+			done()
+		}
 		runtime.EventsEmit(a.ctx, "term-closed:"+id, reason)
 	}()
-	return id, nil
+	return id
 }
 
 // TermInput sends keystrokes (base64) to a terminal.

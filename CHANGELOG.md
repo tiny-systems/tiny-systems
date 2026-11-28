@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.1.5
+
+- **Changes** tab: what the helper changed in its project, read live from
+  its workspace. Files on the left (a filled dot means committed on its
+  branch), each one's diff on the right. **Pull…** copies the project,
+  with its history and uncommitted work, into a new folder on this Mac.
+- **Shell** tab: a plain shell on the helper's files, beside the agent.
+  For a paused or finished helper it starts a short-lived pod on the same
+  workspace and removes it when the shell closes.
+- Send files to a helper: drop them on the conversation or press the
+  paper clip. They land in `/workspace/uploads` and the helper is told.
+- Permission requests say what they do ("Open port 5173 as
+  pricing-preview") with **Allow** and **Deny**; after you allow, the
+  result shows (a link opens in the browser).
+- New helper → Advanced: CPUs, memory and sandbox (garden default,
+  gVisor, or none).
+- Saving a file a helper showed you no longer keeps a name that could run
+  when opened: anything but plain images, PDFs and text gets `.download`.
+
 ## 0.1.4
 
 - Helpers can show you files: a screenshot of what they built, a chart,

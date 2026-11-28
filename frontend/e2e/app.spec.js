@@ -2,10 +2,10 @@ import { test, expect } from '@playwright/test';
 
 test('the list shows the demo garden, and Needs you filters it', async ({ page }) => {
   await page.goto('/');
-  await expect(page.locator('#rows .row')).toHaveCount(6);
+  await expect(page.locator('#rows .row')).toHaveCount(7);
   await page.locator('#filters [data-filter=ask]').click();
-  await expect(page.locator('#rows .row')).toHaveCount(1);
-  await expect(page.locator('#rows .row')).toContainText('time zone');
+  await expect(page.locator('#rows .row')).toHaveCount(2);
+  await expect(page.locator('#rows .row').filter({ hasText: 'time zone' })).toHaveCount(1);
 });
 
 test('answering a question with an option', async ({ page }) => {
@@ -14,7 +14,7 @@ test('answering a question with an option', async ({ page }) => {
   await expect(card).toContainText('Pick one');
   await card.getByRole('button', { name: 'Pin to UTC' }).click();
   await expect(page.locator('.ask-card.answered')).toContainText('You answered Pin to UTC');
-  await expect(page.locator('#rail-badge')).toBeHidden();
+  await expect(page.locator('#rail-badge')).toHaveText('1');
   await expect(page.locator('.msg, .text').filter({ hasText: 'Got it' }).first()).toBeVisible({ timeout: 5000 });
 });
 
@@ -32,7 +32,7 @@ test('starting a new helper', async ({ page }) => {
   await page.locator('#new-btn').click();
   await page.locator('#new-form textarea[name=task]').fill('Tidy the README');
   await page.getByRole('button', { name: 'Start helper' }).click();
-  await expect(page.locator('#rows .row')).toHaveCount(7);
+  await expect(page.locator('#rows .row')).toHaveCount(8);
   await expect(page.locator('#rows')).toContainText('Tidy the README');
 });
 
@@ -106,4 +106,42 @@ test('a file the helper showed appears in the chat and opens large', async ({ pa
   await expect(page.locator('#viewer')).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(page.locator('#viewer')).toBeHidden();
+});
+
+test('the Changes tab lists what the helper changed and shows each diff', async ({ page }) => {
+  await page.goto('/?select=s-fern');
+  await page.getByRole('button', { name: 'Changes' }).click();
+  await expect(page.locator('.ch-branch')).toHaveText('fix/monday-checkout');
+  await expect(page.locator('.ch-file')).toHaveCount(3);
+  await expect(page.locator('.diff')).toContainText('previousBusinessDay(now time.Time)');
+  await page.locator('.ch-file').filter({ hasText: 'total_test.go' }).click();
+  await expect(page.locator('.diff .dl.add')).toContainText(['A fixed Monday']);
+  await expect(page.locator('.ch-file[aria-current=true]')).toContainText('total_test.go');
+});
+
+test('a permission request says what it does, and Allow carries it out', async ({ page }) => {
+  await page.goto('/?select=s-rue');
+  const card = page.locator('.ask-card.action');
+  await expect(card).toContainText('Open port 5173');
+  await card.getByRole('button', { name: 'Allow' }).click();
+  await expect(page.locator('.ask-card.action.answered')).toContainText('You allowed it');
+});
+
+test('the shell tab opens a plain shell', async ({ page }) => {
+  await page.goto('/?select=s-basil');
+  await page.getByRole('button', { name: 'Shell' }).click();
+  await expect(page.locator('.xterm')).toContainText('A shell on the helper', { timeout: 5000 });
+  await page.getByRole('button', { name: 'Chat' }).click();
+  await expect(page.locator('.composer .attach')).toBeVisible();
+});
+
+test('new helper options are under Advanced', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('#new-btn').click();
+  await page.locator('#new-form summary').click();
+  await page.locator('#new-form input[name=cpu]').fill('2');
+  await page.locator('#new-form input[name=memory]').fill('4');
+  await page.locator('#new-form select[name=sandbox]').selectOption('gvisor');
+  await page.getByRole('button', { name: 'Start helper' }).click();
+  await expect(page.locator('#rows .row')).toHaveCount(8);
 });

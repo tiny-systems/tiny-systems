@@ -5,6 +5,8 @@ import {fleet} from '../models';
 
 export function Answer(arg1:main.Target,arg2:main.Asking,arg3:string):Promise<void>;
 
+export function Changes(arg1:main.Target,arg2:string):Promise<main.Changes>;
+
 export function CheckForUpdates():Promise<boolean>;
 
 export function CheckUpdate():Promise<main.Update>;
@@ -27,6 +29,8 @@ export function DemoSelect():Promise<string>;
 
 export function Diagnostics():Promise<string>;
 
+export function FilePatch(arg1:main.Target,arg2:string,arg3:string):Promise<main.Patch>;
+
 export function Fleet(arg1:main.Target):Promise<main.Fleet>;
 
 export function Gardens():Promise<Array<main.Garden>>;
@@ -47,9 +51,15 @@ export function NewSession(arg1:main.Target,arg2:main.NewSessionRequest):Promise
 
 export function Notify(arg1:string,arg2:string):Promise<void>;
 
+export function OpenShell(arg1:main.Target,arg2:string,arg3:number,arg4:number):Promise<string>;
+
 export function OpenTerminal(arg1:main.Target,arg2:string,arg3:number,arg4:number):Promise<string>;
 
 export function Pause(arg1:main.Target,arg2:string):Promise<void>;
+
+export function PickUpload(arg1:main.Target,arg2:string):Promise<Array<string>>;
+
+export function Pull(arg1:main.Target,arg2:string):Promise<string>;
 
 export function ReadShown(arg1:main.Target,arg2:string,arg3:string):Promise<main.ShownFile>;
 
@@ -80,5 +90,7 @@ export function TermResize(arg1:string,arg2:number,arg3:number):Promise<void>;
 export function Updater():Promise<boolean>;
 
 export function UpgradeRuntime(arg1:main.Target):Promise<void>;
+
+export function Upload(arg1:main.Target,arg2:string,arg3:Array<string>):Promise<Array<string>>;
 
 export function Version():Promise<string>;

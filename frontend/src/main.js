@@ -2,7 +2,7 @@ import './style.css';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import * as App from '../wailsjs/go/main/App.js';
-import { EventsOn, EventsOff, BrowserOpenURL } from '../wailsjs/runtime/runtime.js';
+import { EventsOn, EventsOff, BrowserOpenURL, OnFileDrop } from '../wailsjs/runtime/runtime.js';
 import { glyph, mark, plantKind, STATE, helperName, nameHelpers } from './plant.js';
 
 const $ = (s) => document.querySelector(s);
@@ -21,10 +21,11 @@ const state = {
   filter: 'all',
   query: '',
   sel: null,           // {key, name}
-  mode: 'chat',        // chat | terminal
+  mode: 'chat',        // chat | changes | terminal | shell
   convo: [],           // messages of the selected helper
   convoFor: '',
-  term: null,          // {id, key, name, term, fit, host}
+  term: null,          // {id, key, name, kind, term, fit, host}
+  changes: { for: '', data: null, sel: '', patch: null, error: '' },
   health: {},          // garden key -> {h, at}
   gardens: [],
 };
@@ -196,7 +197,7 @@ function repoLabel(task) {
 }
 
 function select(key, name, mode = 'chat') {
-  if (state.term && (state.term.key !== key || state.term.name !== name)) closeTerminal();
+  if (state.term && (state.term.key !== key || state.term.name !== name || state.term.kind !== mode)) closeTerminal();
   state.sel = { key, name };
   state.mode = mode;
   state.convoFor = '';
@@ -236,14 +237,22 @@ function renderPane() {
   }
   const switched = body.dataset.for !== `${r.key}/${r.name}`;
   body.dataset.for = `${r.key}/${r.name}`;
-  if (state.mode === 'terminal' && state.term && body.querySelector('.term-wrap')) { body.querySelector('.tabbar').replaceWith(tabbar(r)); return; }
+  const live = isTermMode(state.mode) ? (state.term?.kind === state.mode && body.querySelector('.term-wrap'))
+    : state.mode === 'changes' ? body.querySelector('.changes') : null;
+  if (live && !switched) { body.querySelector('.tabbar').replaceWith(tabbar(r)); return; }
   const parts = [tabbar(r)];
-  if (state.mode === 'terminal') {
+  if (isTermMode(state.mode)) {
     const wrap = el('div', 'term-wrap' + (switched ? ' enter' : ''));
     wrap.id = 'term-wrap';
     parts.push(wrap);
     body.replaceChildren(...parts);
-    openTerminal(r, wrap);
+    openTerminal(r, wrap, state.mode);
+    return;
+  }
+  if (state.mode === 'changes') {
+    parts.push(changesEl(r));
+    body.replaceChildren(...parts);
+    if (state.changes.for !== `${r.key}/${r.name}`) loadChanges(r);
     return;
   }
   const chat = el('div', 'chat' + (switched ? ' enter' : ''));
@@ -263,14 +272,20 @@ function tabbar(r) {
   const st = el('div', `status ${r.kind}`);
   st.append(el('span', 'sd'), STATE[r.kind]);
   const seg = el('div', 'seg');
-  for (const [m, label] of [['chat', 'Chat'], ['terminal', 'Terminal']]) {
+  for (const [m, label, hint] of [
+    ['chat', 'Chat', ''],
+    ['changes', 'Changes', 'What it changed in the project'],
+    ['terminal', 'Terminal', 'Its Claude Code or Codex session'],
+    ['shell', 'Shell', 'A plain shell on its files, beside the agent'],
+  ]) {
     const b = el('button', '', label);
     b.setAttribute('aria-pressed', String(state.mode === m));
-    b.disabled = m === 'terminal' && !r.attachable;
-    b.title = b.disabled ? 'Available while the helper is running' : '';
+    b.disabled = (m === 'terminal' && !r.attachable) || (m !== 'chat' && r.kind === 'seed');
+    b.title = b.disabled ? 'Available while the helper is running' : hint;
     b.onclick = () => {
       if (state.mode === m) return;
-      if (m === 'chat') closeTerminal();
+      if (state.term) closeTerminal();
+      state.changes.for = '';
       state.mode = m;
       $('#pane-body').dataset.for = '';
       renderPane();
@@ -314,7 +329,10 @@ function renderChat(inner, r) {
     const meta = el('div', 'meta');
     meta.append(el('b', '', helperName(r.name)), clock(m.at));
     const text = el('div', 'text');
-    if (m.question) {
+    if (m.question && m.action) {
+      text.append(m.text);
+      text.append(actionCard(r, m));
+    } else if (m.question) {
       text.append(m.idle ? 'Finished a step and is waiting for you.' : m.text);
       const card = el('div', 'ask-card' + (m.open ? '' : ' answered'));
       if (m.open && (m.options || []).length) {
@@ -480,6 +498,12 @@ function composer(r) {
   };
   send.onclick = go;
   ta.onkeydown = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); go(); } };
+  const attach = el('button', 'attach');
+  attach.setAttribute('aria-label', 'Send files');
+  attach.title = 'Send files (or drop them here)';
+  attach.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M20 11.5 12.6 19a5 5 0 0 1-7.1-7.1l7.8-7.8a3.3 3.3 0 0 1 4.7 4.7l-7.6 7.6a1.7 1.7 0 0 1-2.4-2.4l7-7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  attach.onclick = () => upload(r, null);
+  inner.prepend(attach);
   inner.append(ta, send);
   c.append(inner);
   return c;
@@ -501,6 +525,211 @@ function confirmRemove(r) {
     run(`${helperName(r.name)} removed`, () => App.Delete(targetOf(r.key), r.name));
   });
 }
+
+/* Permission requests: a helper asked to do something with your access
+   (open a port, start another helper). The card says what, in words, and
+   Allow carries it out as you. */
+
+function actionSummary(a) {
+  const p = a.params || {};
+  switch (a.type) {
+    case 'exposePort': return [`Open port ${p.port || '?'}`, p.name ? `as “${p.name}”, so you can reach it from this computer` : 'so you can reach it from this computer'];
+    case 'createSession': return ['Start another helper', [p.task && `to “${p.task.length > 120 ? `${p.task.slice(0, 120)}…` : p.task}”`, p.repo && `on ${p.repo}`].filter(Boolean).join(' ') || 'with no task yet'];
+    case 'enableFeature': return [`Turn on ${p.feature || 'a feature'}`, 'for this garden'];
+    default: return [a.type, ''];
+  }
+}
+
+function actionCard(r, m) {
+  const [what, detail] = actionSummary(m.action);
+  const card = el('div', 'ask-card action' + (m.open ? '' : ' answered'));
+  const head = el('div', 'act-what');
+  head.append(el('b', '', what));
+  if (detail) head.append(el('span', '', detail));
+  card.append(head);
+  if (m.open) {
+    const opts = el('div', 'opts');
+    const allow = el('button', 'btn small allow', 'Allow');
+    allow.onclick = () => answer(r, m, 'allow');
+    const deny = el('button', 'btn small', 'Deny');
+    deny.onclick = () => answer(r, m, 'deny');
+    opts.append(allow, deny);
+    card.append(opts);
+  } else {
+    const a = el('div', 'answer');
+    const allowed = /^(allow|yes)$/i.test(m.answer || '');
+    a.append(allowed ? 'You allowed it' : m.answer ? 'You denied it' : 'No longer waiting');
+    const res = m.action.result || '';
+    if (allowed && res) {
+      a.append(': ');
+      if (/^https?:\/\//.test(res)) {
+        const link = el('button', 'linkish', res);
+        link.onclick = () => BrowserOpenURL(res);
+        a.append(link);
+      } else a.append(res);
+    }
+    card.append(a);
+  }
+  return card;
+}
+
+/* Changes: what the helper changed in its project, read live from its
+   workspace (committed work on its branch plus anything not committed
+   yet). Read when the tab opens and on Refresh, not on every tick. */
+
+async function loadChanges(r, keepSel = false) {
+  const c = state.changes;
+  const forId = `${r.key}/${r.name}`;
+  if (c.for !== forId) Object.assign(c, { data: null, sel: '', patch: null, error: '' });
+  c.for = forId;
+  c.loading = true;
+  redrawChanges(r);
+  try {
+    c.data = await App.Changes(targetOf(r.key), r.name);
+    c.error = '';
+  } catch (e) { c.error = friendly(e); }
+  c.loading = false;
+  if (state.changes.for !== forId) return;
+  const files = c.data?.files || [];
+  if (!keepSel || !files.some((f) => f.path === c.sel)) c.sel = files[0]?.path || '';
+  if (c.sel) await loadPatch(r, c.sel); else redrawChanges(r);
+}
+
+async function loadPatch(r, path) {
+  const c = state.changes;
+  const forId = c.for;
+  c.sel = path;
+  c.patch = { loading: true };
+  redrawChanges(r);
+  let p;
+  try { p = await App.FilePatch(targetOf(r.key), r.name, path); } catch (e) { p = { error: friendly(e) }; }
+  if (state.changes.for !== forId || c.sel !== path) return;
+  c.patch = p;
+  redrawChanges(r);
+}
+
+function redrawChanges(r) {
+  const old = document.querySelector('#pane-body .changes');
+  if (old && state.mode === 'changes') old.replaceWith(changesEl(r));
+}
+
+function changesEl(r) {
+  const c = state.changes;
+  const d = c.for === `${r.key}/${r.name}` ? c.data : null;
+  const box = el('div', 'changes');
+  const head = el('div', 'ch-head');
+  if (d?.branch) head.append(el('span', 'ch-branch', d.branch));
+  const files = d?.files || [];
+  if (files.length) {
+    const sum = el('span', 'ch-sum');
+    sum.append(`${files.length} file${files.length === 1 ? '' : 's'} `, el('b', 'plus', `+${d.added}`), ' ', el('b', 'minus', `−${d.deleted}`));
+    head.append(sum);
+  }
+  if ((d?.bundles || []).length) head.append(el('span', 'ch-out', `${d.bundles.length} finished bundle${d.bundles.length === 1 ? '' : 's'} waiting to be pushed`));
+  head.append(el('div', 'fill'));
+  const again = el('button', 'btn small ghost', c.loading ? 'Reading…' : 'Refresh');
+  again.disabled = !!c.loading;
+  again.onclick = () => loadChanges(r, true);
+  const pull = el('button', 'btn small', 'Pull…');
+  pull.title = 'Copy the project, with its history and uncommitted changes, into a new folder on this computer';
+  pull.disabled = !(r.phase === 'Running' && !r.paused) || !!d?.note;
+  pull.onclick = () => run('', async () => {
+    toast('Pulling…');
+    const dest = await App.Pull(targetOf(r.key), r.name);
+    if (dest) toast(`Pulled into ${dest.replace(/^\/Users\/[^/]+/, '~')}`);
+  });
+  head.append(again, pull);
+  box.append(head);
+
+  const note = c.error || d?.note || (!d ? '' : !files.length ? 'Nothing changed yet.' : '');
+  if (!d && !c.error) { const w = el('div', 'ch-note'); w.append(el('span', 'spin'), 'Reading the workspace…'); box.append(w); return box; }
+  if (note) { box.append(el('div', 'ch-note' + (c.error ? ' bad' : ''), note)); return box; }
+
+  const body = el('div', 'ch-body');
+  const list = el('div', 'ch-files');
+  for (const f of files) {
+    const b = el('button', 'ch-file');
+    b.setAttribute('aria-current', String(f.path === c.sel));
+    const i = f.path.lastIndexOf('/');
+    const name = el('span', 'ch-name');
+    if (i >= 0) name.append(el('span', 'ch-dir', f.path.slice(0, i + 1)));
+    name.append(f.path.slice(i + 1));
+    const size = el('span', 'ch-size');
+    if (f.added < 0) size.append('binary');
+    else size.append(el('b', 'plus', `+${f.added}`), ' ', el('b', 'minus', `−${f.deleted}`));
+    const dot = el('span', 'ch-dot' + (f.committed ? ' on' : ''));
+    dot.title = f.committed ? 'Committed on its branch' : 'Not committed yet';
+    b.append(dot, name, size);
+    b.title = f.path;
+    b.onclick = () => loadPatch(r, f.path);
+    list.append(b);
+  }
+  body.append(list, patchEl(c.patch));
+  box.append(body);
+  return box;
+}
+
+function patchEl(p) {
+  const view = el('div', 'ch-patch');
+  if (!p || p.loading) { const w = el('div', 'ch-note'); w.append(el('span', 'spin'), 'Loading…'); view.append(w); return view; }
+  if (p.error) { view.append(el('div', 'ch-note bad', p.error)); return view; }
+  const lines = (p.text || '').split('\n');
+  if (lines[lines.length - 1] === '') lines.pop();
+  const table = el('div', 'diff');
+  let a = 0;
+  let b = 0;
+  let started = false;
+  for (const l of lines) {
+    const h = /^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@(.*)/.exec(l);
+    if (h) {
+      started = true;
+      a = Number(h[1]);
+      b = Number(h[2]);
+      const row = el('div', 'dl hunk');
+      row.append(el('span', 'ln', '⋯'), el('span', 'ln', '⋯'), el('span', 'tx', h[3].trim() || ' '));
+      table.append(row);
+      continue;
+    }
+    if (!started) {
+      if (/^Binary files/.test(l)) table.append(el('div', 'ch-note', 'A binary file: no text to compare.'));
+      continue;
+    }
+    if (l.startsWith('\\')) continue; // "\ No newline at end of file"
+    const kind = l[0] === '+' ? 'add' : l[0] === '-' ? 'del' : 'ctx';
+    const row = el('div', `dl ${kind}`);
+    row.append(el('span', 'ln', kind === 'add' ? '' : String(a)), el('span', 'ln', kind === 'del' ? '' : String(b)), el('span', 'tx', l.slice(1) || ' '));
+    if (kind !== 'add') a++;
+    if (kind !== 'del') b++;
+    table.append(row);
+  }
+  if (!table.children.length) table.append(el('div', 'ch-note', 'No differences in text.'));
+  view.append(table);
+  if (p.cut) view.append(el('div', 'ch-note', 'This change is long: the rest is cut. Pull the project to see all of it.'));
+  return view;
+}
+
+/* Sending files: drop them on the conversation, or press the paper clip.
+   They land in the helper's /workspace/uploads and it's told where. */
+
+async function upload(r, paths) {
+  const t = targetOf(r.key);
+  try {
+    if (paths) toast(paths.length === 1 ? `Sending ${paths[0].split('/').pop()}…` : `Sending ${paths.length} files…`);
+    const sent = await (paths ? App.Upload(t, r.name, paths) : App.PickUpload(t, r.name));
+    if (!sent || !sent.length) return;
+    toast(sent.length === 1 ? `Sent ${sent[0].split('/').pop()} to ${helperName(r.name)}` : `Sent ${sent.length} files to ${helperName(r.name)}`);
+    refresh();
+  } catch (e) { toast(friendly(e), true); }
+}
+
+try {
+  OnFileDrop((x, y, paths) => {
+    const r = selectedRow();
+    if (!r || state.view !== 'helpers' || !paths?.length) return;
+    if (isTermMode(state.mode)) { toast('Drop files on the chat to send them', true); return; }
+    upload(r, paths);
+  }, true);
+} catch { /* no native drop (web build) */ }
 
 /* Modals: one rule for every dialog. A click on the dimmed area, Esc or
    Cancel closes it; if anything was typed or changed, it asks first. A
@@ -594,8 +823,11 @@ const theme = {
   brightBlack: '#5D6A61', brightRed: '#F59585', brightGreen: '#7BE7A0', brightYellow: '#F7CB7A', brightBlue: '#A3C9EC', brightMagenta: '#EFADCB', brightCyan: '#97DDD3', brightWhite: '#F4F8F5',
 };
 
-async function openTerminal(r, wrap) {
-  if (state.term) { wrap.append(state.term.host); state.term.fit.fit(); state.term.term.focus(); return; }
+const isTermMode = (m) => m === 'terminal' || m === 'shell';
+
+async function openTerminal(r, wrap, kind = 'terminal') {
+  if (state.term && state.term.kind === kind) { wrap.append(state.term.host); state.term.fit.fit(); state.term.term.focus(); return; }
+  if (state.term) closeTerminal();
   const host = el('div', 'term');
   wrap.append(host);
   const term = new Terminal({ fontFamily: "'Geist Mono Variable', ui-monospace, Menlo, monospace", fontSize: 12.5, lineHeight: 1.15, cursorBlink: true, allowProposedApi: true, theme, scrollback: 0 });
@@ -603,16 +835,17 @@ async function openTerminal(r, wrap) {
   term.loadAddon(fit);
   term.open(host);
   fit.fit();
-  const entry = { id: null, key: r.key, name: r.name, term, fit, host, closed: false };
+  const entry = { id: null, key: r.key, name: r.name, kind, term, fit, host, closed: false };
   state.term = entry;
-  term.write(`\x1b[2mconnecting to ${helperName(r.name)}…\x1b[0m\r\n`);
+  const shell = kind === 'shell';
+  term.write(`\x1b[2m${shell ? (r.phase === 'Running' && !r.paused ? `opening a shell beside ${helperName(r.name)}…` : `starting a shell on ${helperName(r.name)}’s files (it’s not running, so this takes a moment)…`) : `connecting to ${helperName(r.name)}…`}\x1b[0m\r\n`);
   // A helper that was just started isn't attachable until its agent
   // container runs. The app answers "starting: <step>" meanwhile; show each
   // new step and try again. Other errors get a few retries, then show.
   let last = '';
   for (let fails = 0; ;) {
     try {
-      entry.id = await App.OpenTerminal(targetOf(r.key), r.name, term.cols, term.rows);
+      entry.id = await (shell ? App.OpenShell : App.OpenTerminal)(targetOf(r.key), r.name, term.cols, term.rows);
       if (state.term !== entry) { App.CloseTerminal(entry.id); return; } // left while connecting
       break;
     } catch (e) {
@@ -635,7 +868,7 @@ async function openTerminal(r, wrap) {
   EventsOn(`term:${entry.id}`, (b64) => term.write(fromB64(b64)));
   EventsOn(`term-closed:${entry.id}`, (reason) => {
     entry.closed = true;
-    term.write(`\r\n\x1b[2m[disconnected${reason ? `: ${reason}` : ''}]\x1b[0m\r\n`);
+    term.write(`\r\n\x1b[2m[${shell && !reason ? 'shell closed' : 'disconnected'}${reason ? `: ${reason}` : ''}]\x1b[0m\r\n`);
     EventsOff(`term:${entry.id}`, `term-closed:${entry.id}`);
   });
   term.onData((d) => { if (!entry.closed) App.TermInput(entry.id, toB64(d)); });
@@ -850,7 +1083,7 @@ $('#new-form').onsubmit = async (e) => {
   const t = targetOf(d.garden);
   try {
     const task = (d.task || '').trim();
-    const name = await App.NewSession(t, { task, repo: d.repo, agent: d.agent, model: d.model, image: d.image });
+    const name = await App.NewSession(t, { task, repo: d.repo, agent: d.agent, model: d.model, image: d.image, cpu: d.cpu || '', memory: d.memory || '', sandbox: d.sandbox || '' });
     toast(`${helperName(name)} started`);
     setView('helpers');
     await refresh();

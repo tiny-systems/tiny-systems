@@ -23,13 +23,18 @@ func demoFleet() Fleet {
 		{Name: "s-basil", Phase: "Running", Glyph: "●", Title: "Writing the welcome email for new customers", Activity: "Drafting the second paragraph, keeping it under 120 words", Age: "12m", Attach: true, CPU: "210m", Mem: "380Mi"},
 		{Name: "s-fern", Phase: "Running", Glyph: "✳", Title: "Fixing the checkout test that fails on Mondays", Age: "40m", Attach: true,
 			Question: &Asking{Name: "q-fern", Session: "s-fern", Text: "The test depends on the local time zone. Should I pin it to UTC, or make the test run in every time zone?", Options: []string{"Pin to UTC", "Every time zone"}}},
+		{Name: "s-rue", Phase: "Running", Glyph: "✳", Title: "Building the new pricing page", Age: "25m", Attach: true,
+			Question: &Asking{Name: "q-rue", Session: "s-rue", Text: demoRueAsk, Options: []string{"allow", "deny"},
+				Action: &Action{Type: "exposePort", Params: map[string]string{"port": "5173", "name": "pricing-preview"}}}},
 		{Name: "s-mint", Phase: "Done", Glyph: "✓", Title: "Added a dark mode to the settings page", Age: "2h", Exit: &exit0},
 		{Name: "s-sage", Phase: "Running", Glyph: "⏸", Title: "Translating the help pages into Spanish", Age: "1d", Paused: true},
 		{Name: "s-ivy", Phase: "Failed", Glyph: "✗", Title: "Updating the payment library", Message: "It couldn't download the new version: the website it needs isn't on this garden's list of allowed sites.", Age: "3h"},
 		{Name: "s-moss", Phase: "starting", Glyph: "◌", Title: "Summarising last week's support tickets", Age: "20s"},
 	}
-	return Fleet{Target: demoTarget(), Rows: rows, ReadAt: time.Now().Format("15:04:05"), NeedsYou: 1, Running: 2}
+	return Fleet{Target: demoTarget(), Rows: rows, ReadAt: time.Now().Format("15:04:05"), NeedsYou: 2, Running: 3}
 }
+
+const demoRueAsk = "Can I open port 5173 so you can look at the page in your browser?"
 
 // DemoSelect is the helper the demo opens with, if any.
 func (a *App) DemoSelect() string { return strings.TrimSpace(os.Getenv("TINY_DEMO_SELECT")) }
@@ -45,6 +50,13 @@ func demoConversation(session string) []Message {
 			{From: "helper", File: demoChart, Text: "A month of runs by weekday: every Monday run fails, every other day passes.", At: at(29 * time.Minute)},
 			{From: "helper", Question: "q-fern", Open: true, Options: []string{"Pin to UTC", "Every time zone"},
 				Text: "The test depends on the local time zone. Should I pin it to UTC, or make the test run in every time zone?", At: at(6 * time.Minute)},
+		}
+	case "s-rue":
+		return []Message{
+			{From: "you", Text: "Build the new pricing page from the Figma notes in docs/pricing.md", At: at(25 * time.Minute)},
+			{From: "helper", Text: "The page is up in the dev server with all three plans and the yearly toggle.", At: at(3 * time.Minute)},
+			{From: "helper", Question: "q-rue", Open: true, Options: []string{"allow", "deny"}, Text: demoRueAsk, At: at(2 * time.Minute),
+				Action: &Action{Type: "exposePort", Params: map[string]string{"port": "5173", "name": "pricing-preview"}}},
 		}
 	case "s-basil":
 		return []Message{

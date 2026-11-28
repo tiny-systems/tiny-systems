@@ -31,7 +31,12 @@ picked.
   shows its state: working, needs you, finished, stuck, resting. Answer a
   question right in the conversation, send a message, open its terminal to
   watch it work (closing the terminal leaves it running), let it rest, or
-  remove it. When a helper wants to show you something (a screenshot,
+  remove it. **Changes** shows what it changed in the project, file by
+  file, and **Pull…** copies the project to this Mac; **Shell** opens a
+  plain shell on its files. Drop files on the conversation (or press the
+  paper clip) to send them. When a helper asks permission to open a port
+  or start another helper, the card says exactly what Allow does.
+  When a helper wants to show you something (a screenshot,
   a chart, a report) it appears in the conversation, images inline; the
   file stays on the garden until you open or save it. The + beside a
   garden's name starts one there. A helper

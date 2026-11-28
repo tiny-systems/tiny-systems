@@ -6,6 +6,10 @@ export function Answer(arg1, arg2, arg3) {
   return window['go']['main']['App']['Answer'](arg1, arg2, arg3);
 }
 
+export function Changes(arg1, arg2) {
+  return window['go']['main']['App']['Changes'](arg1, arg2);
+}
+
 export function CheckForUpdates() {
   return window['go']['main']['App']['CheckForUpdates']();
 }
@@ -50,6 +54,10 @@ export function Diagnostics() {
   return window['go']['main']['App']['Diagnostics']();
 }
 
+export function FilePatch(arg1, arg2, arg3) {
+  return window['go']['main']['App']['FilePatch'](arg1, arg2, arg3);
+}
+
 export function Fleet(arg1) {
   return window['go']['main']['App']['Fleet'](arg1);
 }
@@ -90,12 +98,24 @@ export function Notify(arg1, arg2) {
   return window['go']['main']['App']['Notify'](arg1, arg2);
 }
 
+export function OpenShell(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['OpenShell'](arg1, arg2, arg3, arg4);
+}
+
 export function OpenTerminal(arg1, arg2, arg3, arg4) {
   return window['go']['main']['App']['OpenTerminal'](arg1, arg2, arg3, arg4);
 }
 
 export function Pause(arg1, arg2) {
   return window['go']['main']['App']['Pause'](arg1, arg2);
+}
+
+export function PickUpload(arg1, arg2) {
+  return window['go']['main']['App']['PickUpload'](arg1, arg2);
+}
+
+export function Pull(arg1, arg2) {
+  return window['go']['main']['App']['Pull'](arg1, arg2);
 }
 
 export function ReadShown(arg1, arg2, arg3) {
@@ -156,6 +176,10 @@ export function Updater() {
 
 export function UpgradeRuntime(arg1) {
   return window['go']['main']['App']['UpgradeRuntime'](arg1);
+}
+
+export function Upload(arg1, arg2, arg3) {
+  return window['go']['main']['App']['Upload'](arg1, arg2, arg3);
 }
 
 export function Version() {
