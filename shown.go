@@ -95,9 +95,9 @@ func (a *App) SaveShown(t Target, session, file string) (string, error) {
 	}
 	home, _ := os.UserHomeDir()
 	dest, err := runtime.SaveFileDialog(a.ctx, runtime.SaveDialogOptions{
-		DefaultFilename:  path.Base(file),
+		DefaultFilename:  saveName(file),
 		DefaultDirectory: home + "/Downloads",
-		Title:            "Save " + path.Base(file),
+		Title:            "Save " + saveName(file),
 	})
 	if err != nil || dest == "" {
 		return "", err
@@ -120,3 +120,30 @@ func mimeOf(name string, data []byte) string {
 	return http.DetectContentType(data)
 }
 
+
+// plainTypes are extensions a saved file keeps as they are: documents and
+// images that only display. The helper chose the name, so anything else
+// (.command, .app, .sh, .terminal…) gets .download added and can't run
+// from a double-click in Finder.
+var plainTypes = map[string]bool{
+	".png": true, ".jpg": true, ".jpeg": true, ".gif": true, ".webp": true, ".svg": true,
+	".pdf": true, ".txt": true, ".md": true, ".csv": true, ".json": true, ".log": true,
+}
+
+// saveName is the name the Save dialog suggests for a shown file.
+func saveName(file string) string {
+	name := strings.Map(func(r rune) rune {
+		if r < 0x20 || r == 0x7f || (r >= 0x80 && r <= 0x9f) || r == ':' {
+			return -1
+		}
+		return r
+	}, path.Base(file))
+	name = strings.TrimLeft(name, ".")
+	if name == "" || name == "/" {
+		name = "shown"
+	}
+	if !plainTypes[strings.ToLower(path.Ext(name))] {
+		name += ".download"
+	}
+	return name
+}
