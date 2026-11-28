@@ -11,9 +11,12 @@
   workspace and removes it when the shell closes.
 - Send files to a helper: drop them on the conversation or press the
   paper clip. They land in `/workspace/uploads` and the helper is told.
-- Permission requests say what they do ("Open port 5173 as
-  pricing-preview") with **Allow** and **Deny**; after you allow, the
-  result shows (a link opens in the browser).
+- Permission requests say what they do ("Open port 5173") and list every
+  detail Allow will use, with a warning when a helper asks for its own
+  container image or user; after you allow, the result shows (a link
+  opens in the browser).
+- Pulled projects arrive with a defused `.git`: no hooks, and none of
+  the git settings that would run a program on this Mac.
 - New helper → Advanced: CPUs, memory and sandbox (garden default,
   gVisor, or none).
 - Saving a file a helper showed you no longer keeps a name that could run

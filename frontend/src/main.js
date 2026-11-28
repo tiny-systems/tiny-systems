@@ -530,23 +530,41 @@ function confirmRemove(r) {
    (open a port, start another helper). The card says what, in words, and
    Allow carries it out as you. */
 
-function actionSummary(a) {
+// Every parameter Allow will use is shown, by name: the card is the only
+// place you see what you're authorizing. A custom container image or user
+// gets a warning; parameters the app doesn't know are shown as they are.
+const ACTION_LABELS = {
+  exposePort: { title: (p) => `Open port ${p.port || '?'}`, fields: { port: 'Port', name: 'Name', pod: 'Pod', session: 'Helper' } },
+  createSession: { title: () => 'Start another helper', fields: { task: 'Task', repo: 'Project', image: 'Container image', cpu: 'CPUs', memory: 'Memory', user: 'Runs as user', name: 'Name' } },
+  enableFeature: { title: (p) => `Turn on ${p.feature || 'a feature'}`, fields: { feature: 'Feature' } },
+};
+
+function actionDetails(a) {
+  const kind = ACTION_LABELS[a.type];
   const p = a.params || {};
-  switch (a.type) {
-    case 'exposePort': return [`Open port ${p.port || '?'}`, p.name ? `as “${p.name}”, so you can reach it from this computer` : 'so you can reach it from this computer'];
-    case 'createSession': return ['Start another helper', [p.task && `to “${p.task.length > 120 ? `${p.task.slice(0, 120)}…` : p.task}”`, p.repo && `on ${p.repo}`].filter(Boolean).join(' ') || 'with no task yet'];
-    case 'enableFeature': return [`Turn on ${p.feature || 'a feature'}`, 'for this garden'];
-    default: return [a.type, ''];
+  const rows = [];
+  const warn = [];
+  const known = kind?.fields || {};
+  for (const k of [...Object.keys(known), ...Object.keys(p).filter((k) => !(k in known)).sort()]) {
+    if (p[k] == null || p[k] === '') continue;
+    rows.push([known[k] || k, p[k]]);
   }
+  if (a.type === 'createSession' && p.image) warn.push('It asks for its own container image, not the garden’s default.');
+  if (a.type === 'createSession' && p.user) warn.push(`It asks to run as user ${p.user}.`);
+  if (!kind) warn.push(`The app doesn’t know “${a.type}” requests; read the details before allowing.`);
+  return { title: kind ? kind.title(p) : a.type, rows, warn };
 }
 
 function actionCard(r, m) {
-  const [what, detail] = actionSummary(m.action);
+  const { title: what, rows, warn } = actionDetails(m.action);
   const card = el('div', 'ask-card action' + (m.open ? '' : ' answered'));
-  const head = el('div', 'act-what');
-  head.append(el('b', '', what));
-  if (detail) head.append(el('span', '', detail));
-  card.append(head);
+  card.append(el('b', 'act-what', what));
+  if (rows.length) {
+    const dl = el('dl', 'act-params');
+    for (const [k, v] of rows) dl.append(el('dt', '', k), el('dd', '', v));
+    card.append(dl);
+  }
+  for (const w of warn) card.append(el('div', 'act-warn', w));
   if (m.open) {
     const opts = el('div', 'opts');
     const allow = el('button', 'btn small allow', 'Allow');

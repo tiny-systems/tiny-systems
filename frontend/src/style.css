@@ -180,9 +180,11 @@ h1, h2, h3 { margin: 0; font-weight: 600; letter-spacing: -0.01em; }
 .ask-card.answered { border-left-color: var(--leaf-2); }
 .ask-card .answer { color: var(--text-2); font-size: 12px; margin-top: 4px; }
 .ask-card .answer b { color: var(--leaf); font-weight: 600; }
-.ask-card.action .act-what { display: flex; flex-direction: column; gap: 1px; }
-.ask-card.action .act-what b { font-weight: 600; }
-.ask-card.action .act-what span { color: var(--text-2); font-size: 12px; }
+.ask-card.action .act-what { display: block; font-weight: 600; }
+.act-params { display: grid; grid-template-columns: max-content 1fr; gap: 2px 12px; margin: 6px 0 0; font-size: 12px; }
+.act-params dt { color: var(--text-3); }
+.act-params dd { margin: 0; color: var(--text); font-family: var(--mono); overflow-wrap: anywhere; white-space: pre-wrap; max-height: 9em; overflow-y: auto; }
+.act-warn { margin-top: 6px; color: var(--amber); font-size: 12px; }
 .ask-card .btn.allow { background: var(--amber); color: #2A1C00; border-color: transparent; }
 .ask-card .btn.allow:hover { background: #F7C56E; color: #2A1C00; }
 
