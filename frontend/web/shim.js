@@ -71,6 +71,8 @@
     Health: async () => { await ready; return clone(state.health); },
     Local: async () => ({ lima: false, vms: [], hint: 'Get the app to add gardens.' }),
     Conversation: async (t, name) => { await ready; return clone(convo(name)); },
+    ReadShown: async (t, name, file) => { await ready; const f = state.shown?.[file]; if (!f) throw new Error(`no such file: ${file}`); return clone(f); },
+    SaveShown: async () => '',
 
     Answer: async (t, q, answer) => {
       await ready;

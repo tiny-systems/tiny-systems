@@ -3,7 +3,7 @@ module github.com/tiny-systems/tiny-systems
 go 1.26.0
 
 require (
-	github.com/tiny-systems/tiny v0.18.0
+	github.com/tiny-systems/tiny v0.19.2
 	github.com/wailsapp/wails/v2 v2.11.0
 	golang.org/x/crypto v0.59.0
 	k8s.io/client-go v0.36.0
@@ -55,8 +55,8 @@ require (
 	google.golang.org/protobuf v1.36.12-0.20260120151049-f2248ac996af // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	k8s.io/api v0.36.0 // indirect
-	k8s.io/apimachinery v0.36.0 // indirect
+	k8s.io/api v0.36.0
+	k8s.io/apimachinery v0.36.0
 	k8s.io/klog/v2 v2.140.0 // indirect
 	k8s.io/kube-openapi v0.0.0-20260317180543-43fb72c5454a // indirect
 	k8s.io/streaming v0.36.0 // indirect

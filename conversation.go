@@ -27,6 +27,9 @@ type Message struct {
 	Answer   string   `json:"answer,omitempty"`
 	Open     bool     `json:"open,omitempty"` // a question still waiting
 	Idle     bool     `json:"idle,omitempty"` // "waiting for your input", not a real question
+	// File is a path in the helper's container that it showed you
+	// (show_user); Text is its caption. ReadShown fetches it.
+	File string `json:"file,omitempty"`
 }
 
 // Conversation returns a helper's history, oldest first.
@@ -79,6 +82,9 @@ func conversationFrom(se *agentsv1.Session, qs []agentsv1.Question) []Message {
 			From: "helper", Text: q.Spec.Text, At: q.CreationTimestamp.Format(time.RFC3339),
 			Question: q.Name, Options: q.Spec.Options, Answer: q.Status.Answer, Open: !q.Answered(), Idle: idle,
 		})
+	}
+	for _, f := range se.Status.Shown {
+		out = append(out, Message{From: "helper", File: f.Path, Text: f.Caption, At: f.At.UTC().Format(time.RFC3339)})
 	}
 	sort.SliceStable(out, func(i, j int) bool { return out[i].At < out[j].At })
 	return out

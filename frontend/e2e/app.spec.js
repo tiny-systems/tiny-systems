@@ -96,3 +96,14 @@ test('each garden in the list has its own +, and a new helper shows its startup 
   await page.getByRole('button', { name: 'Start helper' }).click();
   await expect(page.locator('#pane .working')).toContainText('Waiting for a machine');
 });
+
+test('a file the helper showed appears in the chat and opens large', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('#rows .row', { hasText: 'Juniper' }).click();
+  const shot = page.locator('#pane .shown-img img');
+  await expect(shot).toBeVisible();
+  await shot.click();
+  await expect(page.locator('#viewer')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('#viewer')).toBeHidden();
+});

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.4
+
+- Helpers can show you files: a screenshot of what they built, a chart,
+  a report. They appear in the conversation with a caption, images
+  inline (click for full size); **Save…** keeps a copy. The file stays
+  on the helper's computer until you look at it. Needs tiny 0.19: gardens
+  on an older runtime show **Upgrade runtime**.
+
 ## 0.1.3
 
 - A starting helper shows what it's waiting on (a machine, the first

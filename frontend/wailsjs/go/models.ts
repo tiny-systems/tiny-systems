@@ -106,6 +106,7 @@ export namespace main {
 	    exit?: number;
 	    attachable: boolean;
 	    tags?: string[];
+	    stage?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new Row(source);
@@ -131,6 +132,7 @@ export namespace main {
 	        this.exit = source["exit"];
 	        this.attachable = source["attachable"];
 	        this.tags = source["tags"];
+	        this.stage = source["stage"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {
@@ -398,6 +400,7 @@ export namespace main {
 	    answer?: string;
 	    open?: boolean;
 	    idle?: boolean;
+	    file?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new Message(source);
@@ -413,6 +416,7 @@ export namespace main {
 	        this.answer = source["answer"];
 	        this.open = source["open"];
 	        this.idle = source["idle"];
+	        this.file = source["file"];
 	    }
 	}
 	export class NewSessionRequest {
@@ -452,6 +456,24 @@ export namespace main {
 	        this.openAtLogin = source["openAtLogin"];
 	        this.checkUpdates = source["checkUpdates"];
 	        this.autoUpdate = source["autoUpdate"];
+	    }
+	}
+	export class ShownFile {
+	    name: string;
+	    type: string;
+	    data: string;
+	    size: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new ShownFile(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.name = source["name"];
+	        this.type = source["type"];
+	        this.data = source["data"];
+	        this.size = source["size"];
 	    }
 	}
 	

@@ -42,6 +42,7 @@ func demoConversation(session string) []Message {
 		return []Message{
 			{From: "you", Text: "Fix the checkout test that fails on Mondays", At: at(40 * time.Minute)},
 			{From: "helper", Text: "Found it: the test builds a date from the local clock and assumes a weekday. On Mondays the 'previous business day' wraps to Friday and the expected total is off by one.", At: at(31 * time.Minute)},
+			{From: "helper", File: demoChart, Text: "A month of runs by weekday: every Monday run fails, every other day passes.", At: at(29 * time.Minute)},
 			{From: "helper", Question: "q-fern", Open: true, Options: []string{"Pin to UTC", "Every time zone"},
 				Text: "The test depends on the local time zone. Should I pin it to UTC, or make the test run in every time zone?", At: at(6 * time.Minute)},
 		}

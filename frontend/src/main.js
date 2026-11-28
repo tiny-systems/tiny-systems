@@ -308,7 +308,7 @@ function renderChat(inner, r) {
       const today = day === new Date().toDateString();
       out.push(el('div', 'day', `${today ? 'Today' : new Date(m.at).toLocaleDateString([], { month: 'short', day: 'numeric' })} ${clock(m.at)}`));
     }
-    const mid = `${m.at}|${m.from}|${m.question || ''}|${m.open ? 1 : 0}|${(m.text || '').slice(0, 60)}`;
+    const mid = `${m.at}|${m.from}|${m.question || m.file || ''}|${m.open ? 1 : 0}|${(m.text || '').slice(0, 60)}`;
     if (m.from === 'you') { out.push(Object.assign(el('div', 'msg-you', m.text), { _mid: mid })); continue; }
     const h = el('div', 'msg-helper');
     const meta = el('div', 'meta');
@@ -336,6 +336,9 @@ function renderChat(inner, r) {
         card.append(a);
         text.append(card);
       }
+    } else if (m.file) {
+      if (m.text) text.append(m.text);
+      text.append(shownEl(r, m.file));
     } else {
       text.append(m.text);
     }
@@ -363,6 +366,82 @@ function renderChat(inner, r) {
   seen.msgsFor = forId;
   inner.replaceChildren(...out);
 }
+
+/* Files a helper showed you (show_user). They stay in the helper's pod;
+   each is read once per session of the app and kept as a data URL, so the
+   chat's re-renders don't fetch again. */
+
+const shownCache = new Map();
+const isImage = (type) => /^image\/(png|jpeg|gif|webp|svg\+xml)/.test(type || '');
+const fileName = (p) => p.split('/').pop();
+const sizeLabel = (n) => (n >= 1 << 20 ? `${(n / (1 << 20)).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`);
+
+function loadShown(r, file) {
+  const k = `${r.key}/${r.name}|${file}`;
+  let c = shownCache.get(k);
+  if (c) return c;
+  c = { state: 'loading' };
+  shownCache.set(k, c);
+  App.ReadShown(targetOf(r.key), r.name, file).then((f) => {
+    Object.assign(c, { state: 'ok', type: f.type, size: f.size, url: `data:${f.type.split(';')[0]};base64,${f.data}` });
+  }, (e) => {
+    Object.assign(c, { state: 'error', error: friendly(e) });
+    shownCache.delete(k); // try again on the next render
+    shownCache.set(`${k}|failed`, c);
+  }).finally(() => {
+    for (const n of document.querySelectorAll('.shown')) if (n.dataset.k === k) n.replaceWith(shownEl(r, file));
+  });
+  return c;
+}
+
+function saveShown(r, file) {
+  App.SaveShown(targetOf(r.key), r.name, file).then((dest) => { if (dest) toast(`Saved to ${dest.replace(/^\/Users\/[^/]+/, '~')}`); }, (e) => toast(friendly(e), true));
+}
+
+function shownEl(r, file) {
+  const k = `${r.key}/${r.name}|${file}`;
+  const c = shownCache.get(k) || shownCache.get(`${k}|failed`) || loadShown(r, file);
+  const box = el('div', 'shown');
+  box.dataset.k = k;
+  if (c.state === 'ok' && isImage(c.type)) {
+    const img = el('img');
+    img.src = c.url;
+    img.alt = fileName(file);
+    const b = el('button', 'shown-img');
+    b.title = 'Open';
+    b.append(img);
+    b.onclick = () => openViewer(r, file, c);
+    box.append(b);
+    return box;
+  }
+  const chip = el('div', 'shown-file');
+  chip.append(el('span', 'shown-icon', (fileName(file).split('.').pop() || 'file').slice(0, 4)));
+  const info = el('div', 'shown-info');
+  info.append(el('b', '', fileName(file)), el('span', '',
+    c.state === 'loading' ? 'Loading…' : c.state === 'error' ? c.error : `${sizeLabel(c.size)} · ${file}`));
+  chip.append(info);
+  if (c.state === 'error') {
+    const again = el('button', 'btn ghost', 'Try again');
+    again.onclick = () => { shownCache.delete(`${k}|failed`); box.replaceWith(shownEl(r, file)); };
+    chip.append(again);
+  } else if (c.state === 'ok') {
+    const save = el('button', 'btn ghost', 'Save…');
+    save.onclick = () => saveShown(r, file);
+    chip.append(save);
+  }
+  box.append(chip);
+  return box;
+}
+
+function openViewer(r, file, c) {
+  const d = $('#viewer');
+  $('#viewer-name').textContent = fileName(file);
+  $('#viewer-img').src = c.url;
+  $('#viewer-img').alt = fileName(file);
+  $('#viewer-save').onclick = () => saveShown(r, file);
+  openModal(d);
+}
+$('#viewer-close').onclick = () => dismiss($('#viewer'));
 
 function openQuestion() {
   return [...state.convo].reverse().find((m) => m.question && m.open);

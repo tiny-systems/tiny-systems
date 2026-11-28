@@ -98,12 +98,20 @@ export function Pause(arg1, arg2) {
   return window['go']['main']['App']['Pause'](arg1, arg2);
 }
 
+export function ReadShown(arg1, arg2, arg3) {
+  return window['go']['main']['App']['ReadShown'](arg1, arg2, arg3);
+}
+
 export function Resume(arg1, arg2) {
   return window['go']['main']['App']['Resume'](arg1, arg2);
 }
 
 export function SaveSettings(arg1) {
   return window['go']['main']['App']['SaveSettings'](arg1);
+}
+
+export function SaveShown(arg1, arg2, arg3) {
+  return window['go']['main']['App']['SaveShown'](arg1, arg2, arg3);
 }
 
 export function SendMessage(arg1, arg2, arg3) {

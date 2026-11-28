@@ -31,7 +31,10 @@ picked.
   shows its state: working, needs you, finished, stuck, resting. Answer a
   question right in the conversation, send a message, open its terminal to
   watch it work (closing the terminal leaves it running), let it rest, or
-  remove it. The + beside a garden's name starts one there. A helper
+  remove it. When a helper wants to show you something (a screenshot,
+  a chart, a report) it appears in the conversation, images inline; the
+  file stays on the garden until you open or save it. The + beside a
+  garden's name starts one there. A helper
   that's starting says what it's waiting on; the first one on a garden
   waits a minute or two while the helper image downloads.
 - **Gardens.** Add a garden on this Mac or on another computer, see how

@@ -51,9 +51,13 @@ export function OpenTerminal(arg1:main.Target,arg2:string,arg3:number,arg4:numbe
 
 export function Pause(arg1:main.Target,arg2:string):Promise<void>;
 
+export function ReadShown(arg1:main.Target,arg2:string,arg3:string):Promise<main.ShownFile>;
+
 export function Resume(arg1:main.Target,arg2:string):Promise<void>;
 
 export function SaveSettings(arg1:main.Settings):Promise<void>;
+
+export function SaveShown(arg1:main.Target,arg2:string,arg3:string):Promise<string>;
 
 export function SendMessage(arg1:main.Target,arg2:string,arg3:string):Promise<void>;
 
