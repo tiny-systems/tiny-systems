@@ -1058,15 +1058,17 @@ async function renderGardens() {
     let h = state.health[key];
     if (!h || Date.now() - h.at > 30000) {
       let v = null;
+      let gs = null;
       try { v = await App.Health(g.target); } catch { /* unreachable */ }
-      h = state.health[key] = { h: v, at: Date.now() };
+      if (v) { try { gs = await App.GardenSettings(g.target); } catch { /* shown in the sheet */ } }
+      h = state.health[key] = { h: v, gs, at: Date.now() };
     }
-    return gardenRow(g, f, h.h);
+    return gardenRow(g, f, h.h, h.gs);
   }));
   $('#gv-rows').replaceChildren(...rows);
 }
 
-function gardenRow(g, f, h) {
+function gardenRow(g, f, h, gs) {
   const t = g.target;
   const row = el('div', 'gv-row');
   const asleep = !!(f && f.error);
@@ -1102,7 +1104,12 @@ function gardenRow(g, f, h) {
   if (!asleep) {
     const b = el('button', 'btn small', 'New helper');
     b.onclick = () => openNew(t);
-    actions.append(b);
+    const set = el('button', 'icon-btn', '');
+    set.setAttribute('aria-label', `${gardenName(t)} settings`);
+    set.title = 'Garden settings';
+    set.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M4 7h9M17 7h3M4 17h3M11 17h9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="15" cy="7" r="2.2" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="9" cy="17" r="2.2" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>';
+    set.onclick = () => gardenSettings(t);
+    actions.append(b, set);
   }
   row.append(glyph(kind, 20, { tile: true }), name, status, helpers, disk, actions);
 
@@ -1112,6 +1119,8 @@ function gardenRow(g, f, h) {
   if (h && (h.runtimeMissing || []).length) notes.push(['', 'An update is available for this garden.', 'Update', async () => { await App.UpgradeRuntime(t); toast('Updated'); state.health = {}; renderGardens(); }]);
   if (h && !h.sandbox && h.sandboxAvailable) notes.push(['', 'Helpers here run without the sandbox, though it’s installed.', 'Turn on', async () => { await App.SetSandbox(t, true); toast('Sandbox on: new helpers run sealed off'); state.health = {}; renderGardens(); }]);
   if (h && h.signIn === 'none') notes.push(['', 'Helpers can’t sign in here yet.', 'copy']);
+  const fresh = unseenRefusals(t, gs);
+  if (!asleep && fresh.length) notes.push(['', `Helpers here were turned away from ${fresh.length === 1 ? fresh[0].host : `${fresh.length} sites`} not on your list.`, 'Review', async () => gardenSettings(t)]);
   for (const [cls, text, act, fn] of notes) {
     const note = el('div', 'gv-note' + (cls ? ` ${cls}` : ''));
     note.append(text);
@@ -1135,6 +1144,164 @@ function gardenRow(g, f, h) {
     row.append(note);
   }
   return row;
+}
+
+/* Garden settings: internet access and Claude sign-in */
+
+// Refusals the person has already looked at, per garden, so the Gardens
+// view only asks about new ones.
+const seenKey = (t) => `refusals-seen:${keyOf(t)}`;
+function seenRefusals(t) {
+  try { return new Set(JSON.parse(localStorage.getItem(seenKey(t)) || '[]')); } catch { return new Set(); }
+}
+function markRefusalsSeen(t, gs) {
+  try { localStorage.setItem(seenKey(t), JSON.stringify([...new Set([...seenRefusals(t), ...(gs?.refused || []).map((r) => r.host)])])); } catch { /* private window */ }
+}
+function unseenRefusals(t, gs) {
+  if (!gs || gs.egress?.mode !== 'allowlist') return [];
+  const seen = seenRefusals(t);
+  return (gs.refused || []).filter((r) => !seen.has(r.host));
+}
+
+const EGRESS = {
+  open: ['Anywhere', 'Helpers can reach any address on any port.'],
+  fenced: ['Web only', 'Helpers can reach websites (ports 80 and 443) and nothing else outside this garden.'],
+  allowlist: ['Sites you allow', 'Helpers reach only the sites below. Everything else is refused and listed here for you to decide.'],
+};
+
+async function gardenSettings(t) {
+  let gs;
+  try { gs = await App.GardenSettings(t); } catch (e) { toast(friendly(e), true); return; }
+  state.health[keyOf(t)] = { ...(state.health[keyOf(t)] || {}), gs };
+  markRefusalsSeen(t, gs);
+  const body = el('div', 'gs');
+  const again = async (done) => {
+    if (done) toast(done);
+    try { gs = await App.GardenSettings(t); } catch (e) { toast(friendly(e), true); return; }
+    markRefusalsSeen(t, gs);
+    draw();
+  };
+  const act = (fn, done) => async () => {
+    try { await fn(); await again(done); } catch (e) { toast(friendly(e), true); }
+  };
+  function draw() {
+    const eg = gs.egress || {};
+    const net = el('section', 'gs-sec');
+    net.append(el('h3', '', 'Internet access'));
+    const seg = el('div', 'seg');
+    seg.setAttribute('role', 'group');
+    seg.setAttribute('aria-label', 'What helpers may reach');
+    for (const [mode, [label]] of Object.entries(EGRESS)) {
+      const b = el('button', '', label);
+      b.type = 'button';
+      b.setAttribute('aria-pressed', String(eg.mode === mode));
+      b.onclick = async () => {
+        if (eg.mode === mode) return;
+        if (mode === 'open' && !(await ask({ title: 'Let helpers reach anything?', body: 'Helpers could connect to any address on any port, including services on your own network.', ok: 'Allow everything', keep: 'Cancel' }))) return;
+        b.disabled = true;
+        await act(() => App.SetEgressMode(t, mode), `${gardenName(t)}: ${label.toLowerCase()}`)();
+      };
+      seg.append(b);
+    }
+    net.append(seg, el('p', 'hint', EGRESS[eg.mode]?.[1] || ''));
+    if (/NOT ENFORCED/.test(eg.enforced || '')) net.append(el('p', 'hint bad', 'This computer’s network doesn’t enforce the limit, so helpers aren’t actually held to it.'));
+    if (eg.mode === 'allowlist') {
+      if (eg.proxy && eg.proxy !== 'running') net.append(el('p', 'hint warn', eg.proxy === 'starting' ? 'The filter is starting: helpers can reach nothing until it’s up.' : `The filter isn’t running: ${eg.proxy}`));
+      const add = el('form', 'gs-add');
+      const inp = el('input');
+      Object.assign(inp, { placeholder: 'example.com, or .example.com for its subdomains too', spellcheck: false, autocomplete: 'off' });
+      inp.setAttribute('autocapitalize', 'off');
+      inp.setAttribute('aria-label', 'Site to allow');
+      const go = el('button', 'btn small', 'Allow');
+      add.append(inp, go);
+      add.onsubmit = (e) => { e.preventDefault(); const h = inp.value.trim(); if (h) act(() => App.AllowHost(t, h), `${h} allowed: helpers can reach it within a minute or two`)(); };
+      const list = el('ul', 'gs-hosts');
+      for (const h of eg.hosts || []) {
+        const li = el('li');
+        const x = el('button', 'icon-btn', '');
+        x.title = `Remove ${h}`;
+        x.setAttribute('aria-label', `Remove ${h}`);
+        x.innerHTML = '<svg viewBox="0 0 24 24" width="12" height="12" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
+        x.onclick = act(() => App.RemoveHost(t, h), `${h} removed`);
+        li.append(el('span', '', h), x);
+        list.append(li);
+      }
+      if (!(eg.hosts || []).length) list.append(el('li', 'hint', 'Nothing allowed yet.'));
+      net.append(add, list);
+      const refused = gs.refused || [];
+      if (refused.length) {
+        net.append(el('h4', '', 'Turned away lately'));
+        const rl = el('ul', 'gs-refused');
+        for (const r of refused.slice(0, 20)) {
+          const li = el('li');
+          const what = el('div');
+          what.append(el('b', '', r.host), el('span', 'hint', `${r.count}× · last ${clock(r.last)}${r.lookup ? ' · looked up, not connected: allowing it may not help' : ''}`));
+          const ok = el('button', 'btn small', 'Allow');
+          ok.onclick = act(() => App.AllowHost(t, r.host), `${r.host} allowed`);
+          li.append(what, ok);
+          rl.append(li);
+        }
+        net.append(rl, el('p', 'hint', 'A helper asking for a site nobody expected is worth a look before you allow it.'));
+      }
+    }
+
+    const key = el('section', 'gs-sec');
+    key.append(el('h3', '', 'Claude sign-in'));
+    const m = gs.model || {};
+    const row = (...b) => { const a = el('div', 'gs-acts'); a.append(...b); return a; };
+    const btn = (label, fn, cls = 'btn small') => { const b = el('button', cls, label); b.type = 'button'; b.onclick = fn; return b; };
+    if (m.mode === 'gateway') {
+      key.append(el('p', '', 'Your key stays in this garden’s site filter, which adds it to Claude requests on the way out. Helpers never hold it.'));
+      key.append(row(btn('Give helpers the key again', act(() => App.SetGateway(t, false), 'Helpers hold the key again: new ones pick it up'))));
+    } else if (m.mode === 'federation') {
+      key.append(el('p', '', 'Helpers sign in through a Claude Console federation rule. No key is stored here.'));
+      key.append(el('p', 'hint', `Rule ${m.federation?.rule || ''} · organization ${m.federation?.organization || ''}`));
+      if (m.leftover) key.append(el('p', 'hint warn', 'An old key is still stored here, unused, where helpers could read it.'));
+      key.append(row(
+        ...(m.leftover ? [btn('Remove the old key', async () => { if (await ask({ title: 'Remove the stored key?', body: 'Helpers keep signing in through federation. To go back to a key later, add it again.', ok: 'Remove', keep: 'Keep' })) act(() => App.RemoveStoredKey(t), 'Key removed')(); })] : []),
+        btn('Turn off federation', act(() => App.ClearFederation(t), 'Federation off: helpers use a stored key')),
+      ));
+    } else {
+      key.append(el('p', '', m.mode === 'none' ? 'Helpers can’t sign in here yet.' : 'Each helper holds your key while it works.'));
+      const acts = [];
+      if (m.mode === 'none') acts.push(btn('Add key', () => signInDialog(t), 'btn small primary'));
+      else {
+        const gw = btn('Keep the key out of helpers', act(() => App.SetGateway(t, true), 'Key moved: new helpers never hold it'));
+        if (eg.mode !== 'allowlist') { gw.disabled = true; gw.title = 'Needs “Sites you allow” above: the key lives in that filter'; }
+        acts.push(gw);
+      }
+      acts.push(btn('Use federation…', () => fedForm()));
+      key.append(row(...acts));
+      if (m.mode !== 'none' && eg.mode !== 'allowlist') key.append(el('p', 'hint', 'Keeping the key out of helpers needs “Sites you allow”: the filter is where the key lives.'));
+    }
+    body.replaceChildren(net, key);
+  }
+  function fedForm() {
+    const form = el('form');
+    form.style.cssText = 'padding:0;display:flex;flex-direction:column;gap:12px';
+    form.append(
+      field('Federation rule', 'rule', { placeholder: 'fdrl_…', required: true }),
+      field('Organization', 'organization', { placeholder: 'the organization ID from the Claude Console', required: true }),
+      field('Service account', 'serviceAccount', { placeholder: 'svac_…' }, 'optional'),
+      field('Workspace', 'workspace', { placeholder: 'wrkspc_…' }, 'needed when the rule covers several'),
+      el('p', 'hint', 'Create the rule in the Claude Console for this garden’s service account tokens. None of these IDs is a secret.'),
+    );
+    const save = el('button', 'btn primary', 'Use federation');
+    save.type = 'submit';
+    form.append(actionsRow(wbtn('Back', 'ghost', () => gardenSettings(t)), save));
+    form.onsubmit = async (e) => {
+      e.preventDefault();
+      save.disabled = true;
+      try {
+        await App.SetFederation(t, Object.fromEntries(new FormData(form)));
+        toast('Federation on: new helpers sign in without a key');
+        gardenSettings(t);
+      } catch (err) { toast(friendly(err), true); save.disabled = false; }
+    };
+    wizard(el('h2', '', `Federation for ${gardenName(t)}`), form);
+  }
+  draw();
+  wizard(el('h2', '', `${gardenName(t)} settings`), body, actionsRow(wbtn('Done', 'primary', () => { $('#wizard').close(); state.health = {}; if (state.view === 'gardens') renderGardens(); })));
 }
 
 /* Views */
@@ -1236,8 +1403,42 @@ function openNew(target) {
   setSource('git');
   newFolder = null;
   showFolder();
+  loadPresets();
   openModal($('#new-dialog'));
 }
+
+// Presets: saved New helper choices, kept on this Mac.
+const PRESET_FIELDS = ['repo', 'agent', 'model', 'image', 'cpu', 'memory', 'sandbox'];
+let presets = [];
+async function loadPresets(pick = '') {
+  try { presets = (await App.Presets()) || []; } catch { presets = []; }
+  const sel = $('#new-preset');
+  sel.replaceChildren(new Option('None', ''), ...presets.map((p) => new Option(p.name, p.name)));
+  sel.value = presets.some((p) => p.name === pick) ? pick : '';
+  $('#new-preset-row').hidden = !presets.length;
+  $('#preset-forget').hidden = !sel.value;
+  $('#preset-name').value = sel.value;
+}
+$('#new-preset').onchange = () => {
+  const p = presets.find((x) => x.name === $('#new-preset').value);
+  const f = $('#new-form');
+  for (const k of PRESET_FIELDS) if (f.elements[k]) f.elements[k].value = p?.[k] || '';
+  if (p?.repo) setSource('git');
+  if (p && PRESET_FIELDS.some((k) => k !== 'repo' && p[k])) f.querySelector('details.advanced').open = true;
+  $('#preset-forget').hidden = !p;
+  $('#preset-name').value = p?.name || '';
+};
+$('#preset-save').onclick = async () => {
+  const f = $('#new-form');
+  const p = { name: $('#preset-name').value.trim() };
+  for (const k of PRESET_FIELDS) p[k] = (f.elements[k]?.value || '').trim();
+  if (f.dataset.source === 'folder') p.repo = '';
+  try { await App.SavePreset(p); toast(`Preset ${p.name} saved`); await loadPresets(p.name); } catch (e) { toast(friendly(e), true); }
+};
+$('#preset-forget').onclick = async () => {
+  const name = $('#new-preset').value;
+  try { await App.DeletePreset(name); toast(`Preset ${name} forgotten`); await loadPresets(); } catch (e) { toast(friendly(e), true); }
+};
 $('#new-btn').onclick = () => openNew();
 
 // Where the project comes from: a git URL, or a folder on this Mac (sent

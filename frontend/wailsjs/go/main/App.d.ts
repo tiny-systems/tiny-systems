@@ -3,6 +3,8 @@
 import {main} from '../models';
 import {fleet} from '../models';
 
+export function AllowHost(arg1:main.Target,arg2:string):Promise<void>;
+
 export function Answer(arg1:main.Target,arg2:main.Asking,arg3:string):Promise<void>;
 
 export function Changes(arg1:main.Target,arg2:string):Promise<main.Changes>;
@@ -12,6 +14,8 @@ export function CheckForUpdates():Promise<boolean>;
 export function CheckUpdate():Promise<main.Update>;
 
 export function ClaudeSetupToken():Promise<void>;
+
+export function ClearFederation(arg1:main.Target):Promise<void>;
 
 export function CloseTerminal(arg1:string):Promise<void>;
 
@@ -24,6 +28,8 @@ export function CopyCredentials(arg1:main.Target,arg2:main.Target):Promise<void>
 export function CopyDiagnostics():Promise<void>;
 
 export function Delete(arg1:main.Target,arg2:string):Promise<void>;
+
+export function DeletePreset(arg1:string):Promise<void>;
 
 export function Deliver(arg1:main.Recipient,arg2:main.Recipient,arg3:string,arg4:string):Promise<void>;
 
@@ -38,6 +44,8 @@ export function FilePatch(arg1:main.Target,arg2:string,arg3:string):Promise<main
 export function Fleet(arg1:main.Target):Promise<main.Fleet>;
 
 export function Folder(arg1:string):Promise<main.FolderInfo>;
+
+export function GardenSettings(arg1:main.Target):Promise<main.GardenSettings>;
 
 export function Gardens():Promise<Array<main.Garden>>;
 
@@ -67,11 +75,19 @@ export function PickFolder(arg1:string):Promise<string>;
 
 export function PickUpload(arg1:main.Target,arg2:string):Promise<Array<string>>;
 
+export function Presets():Promise<Array<main.Preset>>;
+
 export function Pull(arg1:main.Target,arg2:string):Promise<main.Pulled>;
 
 export function ReadShown(arg1:main.Target,arg2:string,arg3:string):Promise<main.ShownFile>;
 
+export function RemoveHost(arg1:main.Target,arg2:string):Promise<void>;
+
+export function RemoveStoredKey(arg1:main.Target):Promise<void>;
+
 export function Resume(arg1:main.Target,arg2:string):Promise<void>;
+
+export function SavePreset(arg1:main.Preset):Promise<void>;
 
 export function SaveSettings(arg1:main.Settings):Promise<void>;
 
@@ -82,6 +98,12 @@ export function SendMany(arg1:Array<main.Recipient>,arg2:string):Promise<main.Se
 export function SendMessage(arg1:main.Target,arg2:string,arg3:string):Promise<void>;
 
 export function SetBadge(arg1:number):Promise<void>;
+
+export function SetEgressMode(arg1:main.Target,arg2:string):Promise<void>;
+
+export function SetFederation(arg1:main.Target,arg2:main.FederationInfo):Promise<void>;
+
+export function SetGateway(arg1:main.Target,arg2:boolean):Promise<void>;
 
 export function SetSandbox(arg1:main.Target,arg2:boolean):Promise<void>;
 

@@ -20,6 +20,7 @@ type webDemo struct {
 	Shown         map[string]ShownFile `json:"shown"`
 	Changes       map[string]Changes   `json:"changes"`
 	Patches       map[string]string    `json:"patches"`
+	GardenSet     GardenSettings       `json:"gardenSettings"`
 }
 
 func buildWebDemo() webDemo {
@@ -36,6 +37,7 @@ func buildWebDemo() webDemo {
 	}
 	d.Shown[demoChart], _ = demoShown(demoChart)
 	d.Health, _ = a.Health(demoTarget())
+	d.GardenSet, _ = a.GardenSettings(demoTarget())
 	for _, r := range f.Rows {
 		d.Conversations[r.Name] = demoConversation(r.Name)
 		d.Changes[r.Name] = demoChanges(r.Name)

@@ -194,3 +194,48 @@ test('New helper can take a folder from this Mac instead of git', async ({ page 
   await page.getByRole('button', { name: 'From git' }).click();
   await expect(page.locator('#new-repo')).toBeVisible();
 });
+
+test('garden settings: the allow-list, a refused site and the key', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('.rail-btn[data-view=gardens]').click();
+  await expect(page.locator('.gv-note').filter({ hasText: 'turned away from 2 sites' })).toBeVisible();
+  await page.getByRole('button', { name: 'Garden settings' }).click();
+  const sheet = page.locator('#wizard');
+  await expect(sheet.getByRole('button', { name: 'Sites you allow' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(sheet.locator('.gs-hosts')).toContainText('github.com');
+  await sheet.locator('.gs-refused li').filter({ hasText: 'registry.yarnpkg.com' }).getByRole('button', { name: 'Allow' }).click();
+  await expect(sheet.locator('.gs-hosts')).toContainText('registry.yarnpkg.com');
+  await expect(sheet.locator('.gs-refused')).not.toContainText('registry.yarnpkg.com');
+  await sheet.getByRole('button', { name: 'Remove github.com' }).click();
+  await expect(sheet.locator('.gs-hosts')).not.toContainText('github.com');
+  await sheet.getByLabel('Site to allow').fill('https://bad.example/x');
+  await sheet.getByRole('button', { name: 'Allow', exact: true }).first().click();
+  await expect(page.locator('#toast')).toContainText('not a hostname');
+  // The key lives in the filter, so leaving the allow-list is refused.
+  await sheet.getByRole('button', { name: 'Web only' }).click();
+  await expect(page.locator('#toast')).toContainText('turn the gateway off first');
+  await sheet.getByRole('button', { name: 'Give helpers the key again' }).click();
+  await expect(sheet).toContainText('Each helper holds your key');
+  await sheet.getByRole('button', { name: 'Done' }).click();
+  await expect(page.locator('.gv-note').filter({ hasText: 'turned away' })).toHaveCount(0);
+});
+
+test('a preset saves New helper choices and fills them back', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('#new-btn').click();
+  await expect(page.locator('#new-preset-row')).toBeHidden();
+  await page.locator('#new-repo').fill('https://github.com/acme/shop');
+  await page.locator('details.advanced summary').click();
+  await page.locator('#new-form input[name=memory]').fill('8');
+  await page.locator('#preset-name').fill('Shop work');
+  await page.getByRole('button', { name: 'Save preset' }).click();
+  await expect(page.locator('#toast')).toContainText('Preset Shop work saved');
+  await page.getByRole('button', { name: 'Cancel' }).click();
+  await page.getByRole('button', { name: 'Discard' }).click().catch(() => {});
+  await page.locator('#new-btn').click();
+  await expect(page.locator('#new-preset-row')).toBeVisible();
+  await expect(page.locator('#new-repo')).toHaveValue('');
+  await page.locator('#new-preset').selectOption('Shop work');
+  await expect(page.locator('#new-repo')).toHaveValue('https://github.com/acme/shop');
+  await expect(page.locator('#new-form input[name=memory]')).toHaveValue('8');
+});

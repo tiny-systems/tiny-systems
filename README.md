@@ -39,7 +39,8 @@ picked.
   Helpers a helper started sit under it. Message several helpers at once,
   pass a note or a file from one helper to another, start a helper from
   a folder on this Mac (and continue its Claude Code conversation), and
-  export a conversation as Markdown.
+  export a conversation as Markdown. Save New helper choices (project,
+  assistant, model, size, sandbox) as a **preset** and pick it next time.
   When a helper wants to show you something (a screenshot,
   a chart, a report) it appears in the conversation, images inline; the
   file stays on the garden until you open or save it. The + beside a
@@ -49,7 +50,14 @@ picked.
 - **Gardens.** Add a garden on this Mac or on another computer, see how
   each one is doing (disk, memory, runtime version, sign-in), with the fix
   beside what's wrong: start a stopped VM, upgrade the runtime, copy the
-  sign-in from another garden, turn the sandbox on.
+  sign-in from another garden, turn the sandbox on. Each garden's
+  **settings** (the sliders button) choose what its helpers may reach on
+  the internet (anywhere, web only, or only the sites you allow), edit
+  that list, and show the sites helpers were turned away from, each with
+  an Allow button; the Gardens view says when there are new ones. The
+  same sheet shows where the Claude key is kept and can move it out of
+  every helper (into the site filter) or switch to Claude Console
+  federation, where no key is stored at all.
 - **Dialogs** close with a click outside them, Esc or Cancel; if you've
   typed something, the app asks before throwing it away.
 - **Notifications** when a helper starts waiting for you, and the count on

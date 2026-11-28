@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- **Garden settings** (the sliders button in Gardens): choose what a
+  garden's helpers may reach on the internet: anywhere, websites only, or
+  only the sites you allow. Edit that list, and see the sites helpers
+  were turned away from lately, each with an Allow button. The Gardens
+  view tells you when helpers were refused a site you haven't looked at.
+- The same sheet says where the garden keeps its Claude key and can move
+  it out of every helper into the site filter (the model gateway), or
+  switch to Claude Console federation, where no key is stored at all.
+- **Presets**: save New helper choices (project, assistant, model, CPUs,
+  memory, sandbox) under a name and pick them next time.
 - Continuing a Claude Code conversation sends only the latest one, and
   only if it was recorded in the chosen folder (two folders can share
   Claude Code's conversation folder name).
