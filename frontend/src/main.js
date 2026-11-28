@@ -26,6 +26,7 @@ const state = {
   convoFor: '',
   term: null,          // {id, key, name, kind, term, fit, host}
   changes: { for: '', data: null, sel: '', patch: null, error: '' },
+  collapsed: new Set(), // parents whose helpers are folded, by key/name
   health: {},          // garden key -> {h, at}
   gardens: [],
 };
@@ -139,7 +140,7 @@ function renderList() {
     const f = state.fleets[key];
     const mine = show.filter((r) => r.key === key);
     if (!mine.length && (state.filter !== 'all' || q)) continue;
-    const g = el('div', 'group');
+    const g = el('div', 'group' + (f && !f.error && !(f.rows || []).length ? ' empty' : ''));
     const dot = el('span', 'gdot' + (f?.error ? ' asleep' : ''));
     const n = (f?.rows || []).length;
     g.append(dot, el('span', 'gn', gardenName(t)), el('span', 'gc', f?.error ? 'asleep' : n ? String(n) : ''));
@@ -152,11 +153,11 @@ function renderList() {
       g.append(add);
     }
     out.push(g);
-    for (const r of mine) out.push(rowEl(r));
-    if (f && !f.error && !n && state.filter === 'all' && !q) {
-      const e = el('button', 'gempty', 'Start a helper');
-      e.onclick = () => openNew(t);
-      out.push(e);
+    const kids = {};
+    for (const r of f?.rows || []) if (r.parent) kids[r.parent] = (kids[r.parent] || 0) + 1;
+    for (const r of mine) {
+      if (r.parent && !q && state.collapsed.has(`${key}/${r.parent}`) && mine.some((p) => p.name === r.parent)) continue;
+      out.push(rowEl(r, kids[r.name] || 0));
     }
   }
   if (!out.length) out.push(el('div', 'list-empty', q ? 'No helpers match.' : 'No helpers yet. Press + to start one.'));
@@ -174,8 +175,8 @@ function renderList() {
   box.replaceChildren(...out);
 }
 
-function rowEl(r) {
-  const b = el('button', 'row');
+function rowEl(r, kids = 0) {
+  const b = el('button', 'row' + (r.depth > 0 ? ' child' : ''));
   b.dataset.id = `${r.key}/${r.name}`;
   b.dataset.kind = r.kind;
   b.setAttribute('aria-current', String(state.sel?.key === r.key && state.sel?.name === r.name));
@@ -187,6 +188,19 @@ function rowEl(r) {
     : r.kind === 'fail' ? (r.message || 'Stuck') : (r.activity || r.title || r.task || STATE[r.kind]);
   b.append(glyph(r.kind, 20, { tile: true }), name, el('span', 'time', r.age), el('div', 'preview', preview));
   if (r.question) b.append(el('span', 'badge', '1'));
+  if (kids) {
+    // A helper that started helpers: fold them away or show them.
+    const id = `${r.key}/${r.name}`;
+    const folded = state.collapsed.has(id);
+    const t = el('span', 'kids' + (folded ? ' folded' : ''), String(kids));
+    t.setAttribute('role', 'button');
+    t.tabIndex = 0;
+    t.title = folded ? `Show the ${kids} helper${kids === 1 ? '' : 's'} it started` : `Hide the helper${kids === 1 ? '' : 's'} it started`;
+    const flip = (e) => { e.stopPropagation(); if (folded) state.collapsed.delete(id); else state.collapsed.add(id); renderList(); };
+    t.onclick = flip;
+    t.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') flip(e); };
+    name.append(t);
+  }
   b.onclick = () => select(r.key, r.name);
   return b;
 }
@@ -269,6 +283,11 @@ function tabbar(r) {
   const bar = el('div', 'tabbar');
   const who = el('div', 'who');
   who.append(glyph(r.kind, 16), helperName(r.name), el('span', 'where', `· ${gardenName(t)}`));
+  if (r.parent) {
+    const p = el('button', 'parent-link', `started by ${helperName(r.parent)}`);
+    p.onclick = () => select(r.key, r.parent);
+    who.append(p);
+  }
   const st = el('div', `status ${r.kind}`);
   st.append(el('span', 'sd'), STATE[r.kind]);
   const seg = el('div', 'seg');
@@ -307,6 +326,8 @@ function helperMenu(r) {
     if (r.paused) items.push(['Resume', '', () => run(`${helperName(r.name)} resumed`, () => App.Resume(t, r.name))]);
     else if (r.kind !== 'done') items.push(['Pause', '', () => run(`${helperName(r.name)} paused`, () => App.Pause(t, r.name))]);
   }
+  items.push(['Send to another helper…', '', () => deliverDialog(r)]);
+  items.push(['Export conversation…', '', () => App.ExportConversation(t, r.name).then((p) => { if (p) toast(`Saved to ${p.replace(/^\/Users\/[^/]+/, '~')}`); }, (e) => toast(friendly(e), true))]);
   items.push(['Copy session ID', '', () => navigator.clipboard?.writeText(r.name).then(() => toast('Copied'))]);
   items.push(['Remove helper…', 'danger', () => confirmRemove(r)]);
   return items;
@@ -370,6 +391,16 @@ function renderChat(inner, r) {
     out.push(w);
   }
   if (r.kind === 'fail' && r.message) out.push(el('div', 'problem', r.message));
+  if (r.paused) {
+    // A resting helper reads nothing until it's resumed; say so where
+    // the message just went.
+    const n = el('div', 'resting');
+    n.append(el('span', '', `${helperName(r.name)} is resting. Messages wait in its inbox and it reads them when you resume it.`));
+    const b = el('button', 'btn small', 'Resume');
+    b.onclick = () => run(`${helperName(r.name)} resumed`, () => App.Resume(targetOf(r.key), r.name));
+    n.append(b);
+    out.push(n);
+  }
   if (r.kind === 'seed') { const w = el('div', 'working'); w.append(el('span', 'spin'), r.stage ? `${r.stage[0].toUpperCase()}${r.stage.slice(1)}…` : 'Starting up…'); out.push(w); }
   if (!msgs.length && r.kind !== 'grow' && r.kind !== 'seed') out.push(el('div', 'day', 'No messages yet.'));
   const forId = `${r.key}/${r.name}`;
@@ -488,6 +519,7 @@ function composer(r) {
     try {
       if (q) await App.Answer(targetOf(r.key), { name: q.question, session: r.name, text: q.text, idle: !!q.idle }, v);
       else await App.SendMessage(targetOf(r.key), r.name, v);
+      if (r.paused) toast(`Delivered. ${helperName(r.name)} reads it when you resume it.`);
       ta.value = '';
       ta.style.height = 'auto';
       await refresh();
@@ -753,6 +785,112 @@ try {
     upload(r, paths);
   }, true);
 } catch { /* no native drop (web build) */ }
+
+/* Several helpers at once. */
+
+const unfinished = (r) => r.kind !== 'done' && r.kind !== 'fail' && !r.command;
+
+// manyDialog sends one message to the helpers you tick (all unfinished
+// ones to start with), across gardens.
+function manyDialog() {
+  const rows = allRows().filter(unfinished);
+  if (!rows.length) { toast('No helpers to message', true); return; }
+  const form = el('form');
+  form.className = 'many';
+  const list = el('div', 'many-list');
+  const all = el('label', 'check many-all');
+  const allBox = el('input');
+  allBox.type = 'checkbox';
+  allBox.checked = true;
+  all.append(allBox, `All ${rows.length} helpers`);
+  const boxes = [];
+  for (const t of state.targets) {
+    const mine = rows.filter((r) => r.key === keyOf(t));
+    if (!mine.length) continue;
+    list.append(el('div', 'many-garden', gardenName(t)));
+    for (const r of mine) {
+      const l = el('label', 'check');
+      const c = el('input');
+      c.type = 'checkbox';
+      c.checked = true;
+      c._r = r;
+      boxes.push(c);
+      l.append(c, helperName(r.name), el('span', 'many-what', r.paused ? 'resting: reads it on resume' : (r.title || r.task || '')));
+      list.append(l);
+    }
+  }
+  const count = () => boxes.filter((c) => c.checked).length;
+  allBox.onchange = () => { for (const c of boxes) c.checked = allBox.checked; sync(); };
+  const ta = el('textarea');
+  ta.rows = 3;
+  ta.placeholder = 'Demo at 10: wrap up and open pull requests';
+  const label = el('label', 'field');
+  label.append('Message', ta);
+  const send = el('button', 'btn primary');
+  send.type = 'submit';
+  const sync = () => {
+    const n = count();
+    allBox.checked = n === boxes.length;
+    allBox.indeterminate = n > 0 && n < boxes.length;
+    send.textContent = n ? `Send to ${n}` : 'Send';
+    send.disabled = !n || !ta.value.trim();
+  };
+  for (const c of boxes) c.onchange = sync;
+  ta.oninput = sync;
+  sync();
+  form.append(all, list, label, actionsRow(wbtn('Cancel', 'ghost', () => dismiss($('#wizard'))), send));
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    send.disabled = true;
+    try {
+      const to = boxes.filter((c) => c.checked).map((c) => ({ target: targetOf(c._r.key), session: c._r.name }));
+      const res = await App.SendMany(to, ta.value);
+      $('#wizard').close();
+      const ok = (res.delivered || []).length;
+      const bad = res.failed || [];
+      toast(bad.length ? `Sent to ${ok}. Not delivered: ${bad.join('; ')}` : `Sent to ${ok} helper${ok === 1 ? '' : 's'}`, bad.length > 0);
+      refresh();
+    } catch (err) { toast(friendly(err), true); sync(); }
+  };
+  wizard(el('h2', '', 'Message several helpers'), form);
+}
+$('#many-btn').onclick = manyDialog;
+
+// deliverDialog passes a note, and optionally a file from this helper's
+// workspace, to another helper.
+function deliverDialog(r) {
+  const others = allRows().filter((x) => unfinished(x) && !(x.key === r.key && x.name === r.name));
+  if (!others.length) { toast('There’s no other helper to send to', true); return; }
+  const form = el('form');
+  form.style.cssText = 'padding:0;display:flex;flex-direction:column;gap:13px';
+  const to = el('label', 'field');
+  to.append('To');
+  const sel = el('select');
+  for (const x of others) sel.append(new Option(`${helperName(x.name)} · ${gardenName(targetOf(x.key))}`, `${x.key}|${x.name}`));
+  to.append(sel);
+  const note = el('label', 'field');
+  const ta = el('textarea');
+  ta.rows = 3;
+  ta.placeholder = `What ${helperName(r.name)} found, or what to do next`;
+  note.append('Note', ta);
+  const file = field('File from ' + helperName(r.name), 'file', { placeholder: 'notes/findings.md (in its project) or a full path' }, 'optional');
+  const send = el('button', 'btn primary', 'Send');
+  send.type = 'submit';
+  form.append(to, note, file, el('p', 'hint', 'The file is copied into the other helper’s uploads folder, and it’s told where. Up to 25 MB.'),
+    actionsRow(wbtn('Cancel', 'ghost', () => dismiss($('#wizard'))), send));
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    const [key, name] = sel.value.split('|');
+    send.disabled = true;
+    try {
+      await App.Deliver({ target: targetOf(r.key), session: r.name }, { target: targetOf(key), session: name }, ta.value, new FormData(form).get('file') || '');
+      $('#wizard').close();
+      toast(`Sent to ${helperName(name)}`);
+      refresh();
+    } catch (err) { toast(friendly(err), true); send.disabled = false; }
+  };
+  wizard(el('h2', '', `Send from ${helperName(r.name)} to another helper`), form);
+}
 
 /* Modals: one rule for every dialog. A click on the dimmed area, Esc or
    Cancel closes it; if anything was typed or changed, it asks first. A
@@ -1095,23 +1233,55 @@ function openNew(target) {
   const pick = target ? keyOf(target) : state.sel?.key;
   if (pick && live.some((t) => keyOf(t) === pick)) sel.value = pick;
   if (!live.length) { toast('Add a garden first: that’s where helpers live.', true); return; }
+  setSource('git');
+  newFolder = null;
+  showFolder();
   openModal($('#new-dialog'));
 }
 $('#new-btn').onclick = () => openNew();
+
+// Where the project comes from: a git URL, or a folder on this Mac (sent
+// as it stands), optionally with its Claude Code conversation to continue.
+let newFolder = null;
+function setSource(v) {
+  for (const b of document.querySelectorAll('#new-source button')) b.setAttribute('aria-pressed', String(b.dataset.source === v));
+  $('#new-repo').hidden = v !== 'git';
+  $('#new-folder').hidden = v !== 'folder';
+  $('#new-form').dataset.source = v;
+}
+for (const b of document.querySelectorAll('#new-source button')) b.onclick = () => setSource(b.dataset.source);
+function showFolder() {
+  const f = newFolder;
+  $('#new-folder-name').textContent = f ? f.path.replace(/^\/Users\/[^/]+/, '~') : 'No folder chosen';
+  $('#new-continue-row').hidden = !f?.session;
+  $('#new-continue').checked = !!f?.session;
+  $('#new-continue-note').textContent = f?.recent ? 'Claude Code wrote to it seconds ago: quit it there first, or the two copies will drift apart.' : 'The helper picks up the conversation where you left it.';
+  $('#new-continue-note').classList.toggle('warn', !!f?.recent);
+}
+$('#new-folder-pick').onclick = async () => {
+  try {
+    const p = await App.PickFolder('Send this folder to the helper');
+    if (!p) return;
+    newFolder = await App.Folder(p);
+    showFolder();
+  } catch (e) { toast(friendly(e), true); }
+};
 $('#new-cancel').onclick = () => dismiss($('#new-dialog'));
 $('#new-form').onsubmit = async (e) => {
   e.preventDefault();
   const d = Object.fromEntries(new FormData(e.target));
+  const fromMac = e.target.dataset.source === 'folder';
+  if (fromMac && !newFolder) { toast('Choose a folder first', true); return; }
   $('#new-dialog').close();
   const t = targetOf(d.garden);
   try {
     const task = (d.task || '').trim();
-    const name = await App.NewSession(t, { task, repo: d.repo, agent: d.agent, model: d.model, image: d.image, cpu: d.cpu || '', memory: d.memory || '', sandbox: d.sandbox || '' });
+    const name = await App.NewSession(t, { task, repo: fromMac ? '' : d.repo, dir: fromMac ? newFolder.path : '', continue: fromMac && $('#new-continue').checked, agent: d.agent, model: d.model, image: d.image, cpu: d.cpu || '', memory: d.memory || '', sandbox: d.sandbox || '' });
     toast(`${helperName(name)} started`);
     setView('helpers');
     await refresh();
     // No task: a blank session, so open straight into its terminal.
-    select(keyOf(t), name, task ? 'chat' : 'terminal');
+    select(keyOf(t), name, task || fromMac ? 'chat' : 'terminal');
   } catch (err) { toast(friendly(err), true); }
 };
 
@@ -1354,6 +1524,8 @@ EventsOn('install:event', (e) => {
 });
 
 EventsOn('vms:started', () => { state.health = {}; refresh(); });
+EventsOn('ship:done', (name, files) => { toast(`${helperName(name)} has the folder (${files} files)`); refresh(); });
+EventsOn('ship:failed', (name, why) => { toast(`${helperName(name)} didn’t get the folder: ${why}`, true); refresh(); });
 
 async function reloadTargets() {
   state.targets = (await App.Targets()) || [];

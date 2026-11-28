@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.1.6
+
+- Helpers a helper started sit indented under it, with a count you can
+  click to fold them away; a child's header says who started it.
+- **Message several helpers** (the envelope by the search box): tick the
+  helpers, across gardens, and send them one message.
+- **Send to another helper…** (the ••• menu): pass a note, and a file
+  from this helper's workspace if you like, to another helper.
+- New helper can start from a **folder on this Mac**, sent as it is with
+  uncommitted changes, and can **continue its Claude Code conversation**
+  there (tiny's handoff). The helper's startup shows the folder going up.
+- **Export conversation…** saves a helper's conversation as Markdown.
+- A resting helper says that messages wait in its inbox until you resume
+  it, with a Resume button right there.
+- The "Start a helper" line under an empty garden is gone; its + stays
+  visible instead.
+
 ## 0.1.5
 
 - **Changes** tab: what the helper changed in its project, read live from

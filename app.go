@@ -105,6 +105,11 @@ type App struct {
 	stores map[string]*fleet.Client
 	terms  map[string]*terminal
 	nextID int
+	// shipping is the step of helpers receiving a folder from this Mac,
+	// by "context/namespace/name".
+	shipping map[string]string
+	// emitTo, when set, receives events instead of the window (tests).
+	emitTo func(name string, data ...any)
 }
 
 func NewApp() *App {
@@ -221,7 +226,9 @@ func (a *App) Fleet(t Target) Fleet {
 	}
 	f = fleetFrom(f, *snap)
 	for i, r := range snap.Rows {
-		if starting(r) {
+		if st := a.shippingStage(t, r.Name); st != "" {
+			f.Rows[i].Stage = st
+		} else if starting(r) {
 			f.Rows[i].Stage, _ = podStage(ctx, store, r.Pod)
 		}
 	}
@@ -307,21 +314,51 @@ type NewSessionRequest struct {
 	// Sandbox is "" for the garden's default, "gvisor" for the gVisor
 	// sandbox, or "none" to run this helper without one.
 	Sandbox string `json:"sandbox"`
+	// Dir is a folder on this Mac sent into the helper as its project,
+	// uncommitted changes and .git included, instead of Repo.
+	Dir string `json:"dir"`
+	// Continue also sends Dir's latest Claude Code conversation, and the
+	// helper picks it up where it left off (tiny handoff).
+	Continue bool `json:"continue"`
 }
 
-// NewSession starts a session and returns its name.
+// NewSession starts a session and returns its name. With a Dir, the
+// folder (and with Continue, its Claude Code conversation) is sent once
+// the helper's pod runs; the helper waits for it.
 func (a *App) NewSession(t Target, req NewSessionRequest) (string, error) {
+	if req.Dir != "" {
+		if req.Repo != "" {
+			return "", errors.New("pick a project from GitHub or a folder on this Mac, not both")
+		}
+		info, err := a.Folder(req.Dir)
+		if err != nil {
+			return "", err
+		}
+		if req.Continue && !info.Session {
+			return "", fmt.Errorf("Claude Code has no conversation for %s", info.Path)
+		}
+		if req.Continue && req.Agent != "" && req.Agent != "claude" {
+			return "", errors.New("only Claude Code conversations can be continued")
+		}
+		req.Dir = info.Path
+	}
 	var name string
+	var store *fleet.Client
 	err := a.withStore(t, func(ctx context.Context, s *fleet.Client) error {
 		se, err := s.Create(ctx, fleet.CreateOpts{
 			Task: req.Task, Repo: req.Repo, Agent: req.Agent, Model: req.Model, Image: req.Image,
 			CPU: strings.TrimSpace(req.CPU), Memory: memoryQuantity(req.Memory), RuntimeClass: req.Sandbox,
+			Handoff: req.Dir != "",
 		})
 		if err == nil {
-			name = se.Name
+			name, store = se.Name, s
 		}
 		return err
 	})
+	if err == nil && req.Dir != "" {
+		a.setShipping(t, name, "waiting for a machine")
+		go a.ship(t, store, name, req.Dir, req.Continue)
+	}
 	return name, err
 }
 

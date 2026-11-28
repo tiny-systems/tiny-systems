@@ -36,6 +36,10 @@ picked.
   plain shell on its files. Drop files on the conversation (or press the
   paper clip) to send them. When a helper asks permission to open a port
   or start another helper, the card says exactly what Allow does.
+  Helpers a helper started sit under it. Message several helpers at once,
+  pass a note or a file from one helper to another, start a helper from
+  a folder on this Mac (and continue its Claude Code conversation), and
+  export a conversation as Markdown.
   When a helper wants to show you something (a screenshot,
   a chart, a report) it appears in the conversation, images inline; the
   file stays on the garden until you open or save it. The + beside a

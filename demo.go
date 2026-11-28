@@ -21,6 +21,7 @@ func demoFleet() Fleet {
 	exit0 := 0
 	rows := []Row{
 		{Name: "s-basil", Phase: "Running", Glyph: "●", Title: "Writing the welcome email for new customers", Activity: "Drafting the second paragraph, keeping it under 120 words", Age: "12m", Attach: true, CPU: "210m", Mem: "380Mi"},
+		{Name: "s-sorrel", Parent: "s-basil", Depth: 1, Phase: "Running", Glyph: "●", Title: "Checking every link in the welcome email", Activity: "Opening the getting-started guide link", Age: "6m", Attach: true},
 		{Name: "s-fern", Phase: "Running", Glyph: "✳", Title: "Fixing the checkout test that fails on Mondays", Age: "40m", Attach: true,
 			Question: &Asking{Name: "q-fern", Session: "s-fern", Text: "The test depends on the local time zone. Should I pin it to UTC, or make the test run in every time zone?", Options: []string{"Pin to UTC", "Every time zone"}}},
 		{Name: "s-rue", Phase: "Running", Glyph: "✳", Title: "Building the new pricing page", Age: "25m", Attach: true,
@@ -31,7 +32,7 @@ func demoFleet() Fleet {
 		{Name: "s-ivy", Phase: "Failed", Glyph: "✗", Title: "Updating the payment library", Message: "It couldn't download the new version: the website it needs isn't on this garden's list of allowed sites.", Age: "3h"},
 		{Name: "s-moss", Phase: "starting", Glyph: "◌", Title: "Summarising last week's support tickets", Age: "20s"},
 	}
-	return Fleet{Target: demoTarget(), Rows: rows, ReadAt: time.Now().Format("15:04:05"), NeedsYou: 2, Running: 3}
+	return Fleet{Target: demoTarget(), Rows: rows, ReadAt: time.Now().Format("15:04:05"), NeedsYou: 2, Running: 4}
 }
 
 const demoRueAsk = "Can I open port 5173 so you can look at the page in your browser?"

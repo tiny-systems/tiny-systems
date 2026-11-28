@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 
 test('the list shows the demo garden, and Needs you filters it', async ({ page }) => {
   await page.goto('/');
-  await expect(page.locator('#rows .row')).toHaveCount(7);
+  await expect(page.locator('#rows .row')).toHaveCount(8);
   await page.locator('#filters [data-filter=ask]').click();
   await expect(page.locator('#rows .row')).toHaveCount(2);
   await expect(page.locator('#rows .row').filter({ hasText: 'time zone' })).toHaveCount(1);
@@ -32,7 +32,7 @@ test('starting a new helper', async ({ page }) => {
   await page.locator('#new-btn').click();
   await page.locator('#new-form textarea[name=task]').fill('Tidy the README');
   await page.getByRole('button', { name: 'Start helper' }).click();
-  await expect(page.locator('#rows .row')).toHaveCount(8);
+  await expect(page.locator('#rows .row')).toHaveCount(9);
   await expect(page.locator('#rows')).toContainText('Tidy the README');
 });
 
@@ -143,5 +143,54 @@ test('new helper options are under Advanced', async ({ page }) => {
   await page.locator('#new-form input[name=memory]').fill('4');
   await page.locator('#new-form select[name=sandbox]').selectOption('gvisor');
   await page.getByRole('button', { name: 'Start helper' }).click();
-  await expect(page.locator('#rows .row')).toHaveCount(8);
+  await expect(page.locator('#rows .row')).toHaveCount(9);
+});
+
+test('a helper started by another sits under it and folds away', async ({ page }) => {
+  await page.goto('/?select=s-sorrel');
+  await expect(page.locator('#rows .row.child')).toHaveCount(1);
+  await expect(page.locator('.tabbar .parent-link')).toContainText('started by Basil');
+  await page.locator('#rows .row .kids').click();
+  await expect(page.locator('#rows .row.child')).toHaveCount(0);
+  await page.locator('#rows .row .kids').click();
+  await expect(page.locator('#rows .row.child')).toHaveCount(1);
+});
+
+test('one message to several helpers', async ({ page }) => {
+  await page.goto('/?select=s-basil');
+  await page.locator('#many-btn').click();
+  await page.locator('#wizard textarea').fill('Demo at 10');
+  await page.locator('#wizard .many-list input').nth(1).uncheck();
+  const send = page.locator('#wizard button[type=submit]');
+  await expect(send).toHaveText(/Send to \d+/);
+  await send.click();
+  await expect(page.locator('#toast')).toContainText('Sent to');
+  await expect(page.locator('#pane-body')).toContainText('Demo at 10');
+});
+
+test('a note passes from one helper to another', async ({ page }) => {
+  await page.goto('/?select=s-fern');
+  await page.locator('.tabbar .icon-btn').click();
+  await page.getByRole('button', { name: 'Send to another helper…' }).click();
+  await page.locator('#wizard select').selectOption({ label: 'Basil · Garden' });
+  await page.locator('#wizard textarea').fill('the fix is in clock.go');
+  await page.locator('#wizard button[type=submit]').click();
+  await expect(page.locator('#toast')).toContainText('Sent to Basil');
+  await page.locator('#rows .row').filter({ hasText: 'Basil' }).click();
+  await expect(page.locator('#pane-body')).toContainText('From s-fern: the fix is in clock.go');
+});
+
+test('a resting helper says messages wait for it', async ({ page }) => {
+  await page.goto('/?select=s-sage');
+  await expect(page.locator('.resting')).toContainText('is resting');
+});
+
+test('New helper can take a folder from this Mac instead of git', async ({ page }) => {
+  await page.goto('/');
+  await page.locator('#new-btn').click();
+  await page.getByRole('button', { name: 'Folder on this Mac' }).click();
+  await expect(page.locator('#new-repo')).toBeHidden();
+  await expect(page.locator('#new-folder')).toBeVisible();
+  await page.getByRole('button', { name: 'From git' }).click();
+  await expect(page.locator('#new-repo')).toBeVisible();
 });

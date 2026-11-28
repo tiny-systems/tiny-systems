@@ -46,6 +46,10 @@ export function Delete(arg1, arg2) {
   return window['go']['main']['App']['Delete'](arg1, arg2);
 }
 
+export function Deliver(arg1, arg2, arg3, arg4) {
+  return window['go']['main']['App']['Deliver'](arg1, arg2, arg3, arg4);
+}
+
 export function DemoSelect() {
   return window['go']['main']['App']['DemoSelect']();
 }
@@ -54,12 +58,20 @@ export function Diagnostics() {
   return window['go']['main']['App']['Diagnostics']();
 }
 
+export function ExportConversation(arg1, arg2) {
+  return window['go']['main']['App']['ExportConversation'](arg1, arg2);
+}
+
 export function FilePatch(arg1, arg2, arg3) {
   return window['go']['main']['App']['FilePatch'](arg1, arg2, arg3);
 }
 
 export function Fleet(arg1) {
   return window['go']['main']['App']['Fleet'](arg1);
+}
+
+export function Folder(arg1) {
+  return window['go']['main']['App']['Folder'](arg1);
 }
 
 export function Gardens() {
@@ -110,6 +122,10 @@ export function Pause(arg1, arg2) {
   return window['go']['main']['App']['Pause'](arg1, arg2);
 }
 
+export function PickFolder(arg1) {
+  return window['go']['main']['App']['PickFolder'](arg1);
+}
+
 export function PickUpload(arg1, arg2) {
   return window['go']['main']['App']['PickUpload'](arg1, arg2);
 }
@@ -132,6 +148,10 @@ export function SaveSettings(arg1) {
 
 export function SaveShown(arg1, arg2, arg3) {
   return window['go']['main']['App']['SaveShown'](arg1, arg2, arg3);
+}
+
+export function SendMany(arg1, arg2) {
+  return window['go']['main']['App']['SendMany'](arg1, arg2);
 }
 
 export function SendMessage(arg1, arg2, arg3) {

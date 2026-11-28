@@ -25,13 +25,19 @@ export function CopyDiagnostics():Promise<void>;
 
 export function Delete(arg1:main.Target,arg2:string):Promise<void>;
 
+export function Deliver(arg1:main.Recipient,arg2:main.Recipient,arg3:string,arg4:string):Promise<void>;
+
 export function DemoSelect():Promise<string>;
 
 export function Diagnostics():Promise<string>;
 
+export function ExportConversation(arg1:main.Target,arg2:string):Promise<string>;
+
 export function FilePatch(arg1:main.Target,arg2:string,arg3:string):Promise<main.Patch>;
 
 export function Fleet(arg1:main.Target):Promise<main.Fleet>;
+
+export function Folder(arg1:string):Promise<main.FolderInfo>;
 
 export function Gardens():Promise<Array<main.Garden>>;
 
@@ -57,6 +63,8 @@ export function OpenTerminal(arg1:main.Target,arg2:string,arg3:number,arg4:numbe
 
 export function Pause(arg1:main.Target,arg2:string):Promise<void>;
 
+export function PickFolder(arg1:string):Promise<string>;
+
 export function PickUpload(arg1:main.Target,arg2:string):Promise<Array<string>>;
 
 export function Pull(arg1:main.Target,arg2:string):Promise<main.Pulled>;
@@ -68,6 +76,8 @@ export function Resume(arg1:main.Target,arg2:string):Promise<void>;
 export function SaveSettings(arg1:main.Settings):Promise<void>;
 
 export function SaveShown(arg1:main.Target,arg2:string,arg3:string):Promise<string>;
+
+export function SendMany(arg1:Array<main.Recipient>,arg2:string):Promise<main.Sent>;
 
 export function SendMessage(arg1:main.Target,arg2:string,arg3:string):Promise<void>;
 
