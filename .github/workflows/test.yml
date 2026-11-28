@@ -1,5 +1,6 @@
-# Tests on every push and pull request: Go (with the race detector), the
-# frontend builds, and a click-through of the UI on the web build. The Lima installer tests need a
+# Tests on every push and pull request: scripts/check.sh, the same checks
+# the pre-push hook runs locally (gofmt, vet, Go with the race detector, the
+# frontend builds, and a click-through of the UI on the web build). The Lima installer tests need a
 # VM and run by hand (see README).
 name: test
 on:
@@ -26,20 +27,12 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: frontend/package-lock.json
-      - name: Frontend
-        run: |
-          (cd frontend && npm ci && npm run build)
-          WEB_DEMO_OUT=frontend/web/demo.json go test -count=1 -run TestWebDemoData .
-          cd frontend && npm run build:web
-      - name: Vet
-        run: go vet ./... && go vet -tags lima ./...
-      - name: Test
-        run: go test -race -count=1 ./...
-      - name: gofmt
-        run: test -z "$(gofmt -l .)" || { gofmt -l .; exit 1; }
-      - name: UI click-through (web build)
+      - name: Browsers for the click-through
         working-directory: frontend
-        run: npx playwright install chromium && npx playwright test
+        run: npm ci && npx playwright install chromium
+      # The same script the pre-push hook runs (.githooks/pre-push).
+      - name: Checks
+        run: scripts/check.sh
       - uses: actions/upload-artifact@v4
         if: failure()
         with:

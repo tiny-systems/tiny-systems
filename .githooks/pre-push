@@ -1,0 +1,5 @@
+#!/bin/sh
+# Run what CI runs before anything leaves this machine. Turned on once per
+# clone with: git config core.hooksPath .githooks
+# Skip in an emergency with: git push --no-verify
+exec scripts/check.sh

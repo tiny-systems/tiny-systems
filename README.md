@@ -121,8 +121,11 @@ a helper in every state, for working on the look without a cluster
 builds the same UI for the browser with a stand-in backend
 (`frontend/web/shim.js`); `scripts/web-demo.sh` copies it into the website.
 
-Tests: `go test -race ./...` and a click-through of the UI on the web build
-(`npm run test:e2e` in `frontend/`, after `npm run build:web`) run on every push. The installer tests run
+Tests: `scripts/check.sh` runs everything CI runs (gofmt, vet, `go test
+-race`, the frontend builds and a click-through of the UI on the web
+build) in about 30 seconds; `--quick` skips the frontend. Turn on the
+pre-push hook once per clone so a push CI would reject never leaves your
+machine: `git config core.hooksPath .githooks`. The installer tests run
 the real installer against [Lima](https://lima-vm.io) VMs with a temporary
 home folder, so your kubeconfig and known_hosts aren't touched:
 

@@ -297,11 +297,11 @@ func (a *App) Delete(t Target, name string) error {
 
 // NewSessionRequest is what the new-session form sends.
 type NewSessionRequest struct {
-	Task  string `json:"task"`
-	Repo  string `json:"repo"`
-	Agent string `json:"agent"`
-	Model string `json:"model"`
-	Image string `json:"image"`
+	Task   string `json:"task"`
+	Repo   string `json:"repo"`
+	Agent  string `json:"agent"`
+	Model  string `json:"model"`
+	Image  string `json:"image"`
 	CPU    string `json:"cpu"`
 	Memory string `json:"memory"`
 	// Sandbox is "" for the garden's default, "gvisor" for the gVisor

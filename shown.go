@@ -120,7 +120,6 @@ func mimeOf(name string, data []byte) string {
 	return http.DetectContentType(data)
 }
 
-
 // plainTypes are extensions a saved file keeps as they are: documents and
 // images that only display. The helper chose the name, so anything else
 // (.command, .app, .sh, .terminal…) gets .download added and can't run
