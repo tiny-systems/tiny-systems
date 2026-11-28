@@ -1,5 +1,21 @@
 #!/bin/sh
-# Run what CI runs before anything leaves this machine. Turned on once per
-# clone with: git config core.hooksPath .githooks
+# Run what CI runs, on a clean copy of exactly what is being pushed, so a
+# file that exists only here (a built frontend/dist, an uncommitted source
+# file) can't make a push look green. Turned on once per clone with:
+#   git config core.hooksPath .githooks
 # Skip in an emergency with: git push --no-verify
-exec scripts/check.sh
+set -eu
+root=$(git rev-parse --show-toplevel)
+sha=""
+while read -r _lref lsha _rref _rsha; do
+  case "$lsha" in 0000000000000000000000000000000000000000) ;; *) sha=$lsha ;; esac
+done
+[ -n "$sha" ] || exit 0 # deleting a ref: nothing to check
+case "$(git cat-file -t "$sha")" in commit|tag) ;; *) exit 0 ;; esac
+tmp=$(mktemp -d)
+trap 'rm -rf "$tmp"' EXIT
+git archive "$sha" | tar -x -C "$tmp"
+# Reuse installed packages rather than npm ci on every push.
+[ -d "$root/frontend/node_modules" ] && ln -s "$root/frontend/node_modules" "$tmp/frontend/node_modules"
+echo "checking $(git rev-parse --short "$sha") in a clean copy"
+cd "$tmp" && exec scripts/check.sh
