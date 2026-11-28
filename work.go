@@ -99,19 +99,27 @@ func (a *App) FilePatch(t Target, session, path string) (Patch, error) {
 	return Patch{Text: text, Cut: cut}, err
 }
 
-// Pull copies a helper's project (committed work, uncommitted changes and
-// .git) into a new folder the person names. It never writes into a folder
-// that has files in it. Returns where it landed, or "" if cancelled.
-func (a *App) Pull(t Target, session string) (string, error) {
+// Pulled is where a pull landed and anything worth saying about it.
+type Pulled struct {
+	Dest string `json:"dest"`
+	Note string `json:"note,omitempty"`
+}
+
+// Pull copies a helper's project (its files, with uncommitted changes)
+// into a new folder the person names, and rebuilds its git history there
+// from a bundle: the helper's own .git is never copied, since git would
+// run its hooks and settings on this Mac. It never writes into a folder
+// that has files in it. Dest is "" if cancelled.
+func (a *App) Pull(t Target, session string) (Pulled, error) {
 	if isDemo(t) {
-		return "", errNotInDemo
+		return Pulled{}, errNotInDemo
 	}
 	store, row, err := a.findRow(t, session)
 	if err != nil {
-		return "", err
+		return Pulled{}, err
 	}
 	if row.Pod == "" || row.Phase != "Running" {
-		return "", errors.New("resume the helper to pull its project")
+		return Pulled{}, errors.New("resume the helper to pull its project")
 	}
 	home, _ := os.UserHomeDir()
 	dest, err := runtime.SaveFileDialog(a.ctx, runtime.SaveDialogOptions{
@@ -121,14 +129,15 @@ func (a *App) Pull(t Target, session string) (string, error) {
 		CanCreateDirectories: true,
 	})
 	if err != nil || dest == "" {
-		return "", err
+		return Pulled{}, err
 	}
 	ctx, cancel := context.WithTimeout(a.ctx, 15*time.Minute)
 	defer cancel()
-	if _, err := store.PullTree(ctx, row.Pod, "/workspace/repo", dest, nil); err != nil {
-		return "", err
+	res, err := store.PullTree(ctx, row.Pod, "/workspace/repo", dest, nil)
+	if err != nil {
+		return Pulled{}, err
 	}
-	return dest, nil
+	return Pulled{Dest: dest, Note: res.Note}, nil
 }
 
 // Upload sends files from this computer into the helper's workspace

@@ -654,12 +654,12 @@ function changesEl(r) {
   again.disabled = !!c.loading;
   again.onclick = () => loadChanges(r, true);
   const pull = el('button', 'btn small', 'Pull…');
-  pull.title = 'Copy the project, with its history and uncommitted changes, into a new folder on this computer';
+  pull.title = 'Copy the project, with its history and uncommitted changes, into a new folder on this computer. The helper’s own git settings and hooks stay behind.';
   pull.disabled = !(r.phase === 'Running' && !r.paused) || !!d?.note;
   pull.onclick = () => run('', async () => {
     toast('Pulling…');
-    const dest = await App.Pull(targetOf(r.key), r.name);
-    if (dest) toast(`Pulled into ${dest.replace(/^\/Users\/[^/]+/, '~')}`);
+    const res = await App.Pull(targetOf(r.key), r.name);
+    if (res?.dest) toast(`Pulled into ${res.dest.replace(/^\/Users\/[^/]+/, '~')}${res.note ? `. ${res.note}` : ''}`, !!res.note);
   });
   head.append(again, pull);
   box.append(head);

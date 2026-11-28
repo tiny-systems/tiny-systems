@@ -574,6 +574,20 @@ export namespace main {
 	        this.cut = source["cut"];
 	    }
 	}
+	export class Pulled {
+	    dest: string;
+	    note?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new Pulled(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.dest = source["dest"];
+	        this.note = source["note"];
+	    }
+	}
 	
 	export class Settings {
 	    startVMs: boolean;

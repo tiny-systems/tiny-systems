@@ -15,8 +15,10 @@
   detail Allow will use, with a warning when a helper asks for its own
   container image or user; after you allow, the result shows (a link
   opens in the browser).
-- Pulled projects arrive defused: every git repository in them loses its
-  hooks and the git settings that would run a program on this Mac.
+- Pull never copies the helper's `.git` (git would run its hooks and
+  settings on this Mac): the history is rebuilt in the new folder from a
+  bundle, with uncommitted work showing as changes. Needs git on this Mac
+  for the history; without it the files come alone.
 - New helper → Advanced: CPUs, memory and sandbox (garden default,
   gVisor, or none).
 - Saving a file a helper showed you no longer keeps a name that could run

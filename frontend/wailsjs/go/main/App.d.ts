@@ -59,7 +59,7 @@ export function Pause(arg1:main.Target,arg2:string):Promise<void>;
 
 export function PickUpload(arg1:main.Target,arg2:string):Promise<Array<string>>;
 
-export function Pull(arg1:main.Target,arg2:string):Promise<string>;
+export function Pull(arg1:main.Target,arg2:string):Promise<main.Pulled>;
 
 export function ReadShown(arg1:main.Target,arg2:string,arg3:string):Promise<main.ShownFile>;
 
