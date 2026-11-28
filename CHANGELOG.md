@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.1.7
 
 - **Garden settings** (the sliders button in Gardens): choose what a
   garden's helpers may reach on the internet: anywhere, websites only, or
