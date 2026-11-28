@@ -540,14 +540,19 @@ const ACTION_LABELS = {
 };
 
 function actionDetails(a) {
-  const kind = ACTION_LABELS[a.type];
+  // Own properties only: a parameter named "constructor" or "toString"
+  // must show like any other, not vanish into Object.prototype.
+  const kind = Object.hasOwn(ACTION_LABELS, a.type) ? ACTION_LABELS[a.type] : null;
   const p = a.params || {};
   const rows = [];
   const warn = [];
   const known = kind?.fields || {};
-  for (const k of [...Object.keys(known), ...Object.keys(p).filter((k) => !(k in known)).sort()]) {
-    if (p[k] == null || p[k] === '') continue;
-    rows.push([known[k] || k, p[k]]);
+  const isKnown = (k) => Object.hasOwn(known, k);
+  for (const k of [...Object.keys(known), ...Object.keys(p).filter((k) => !isKnown(k)).sort()]) {
+    if (!Object.hasOwn(p, k) || p[k] == null || p[k] === '') continue;
+    const v = p[k];
+    if (typeof v !== 'string') warn.push(`“${k}” isn’t plain text; it’s shown as sent.`);
+    rows.push([isKnown(k) ? known[k] : k, typeof v === 'string' ? v : JSON.stringify(v, null, 2)]);
   }
   if (a.type === 'createSession' && p.image) warn.push('It asks for its own container image, not the garden’s default.');
   if (a.type === 'createSession' && p.user) warn.push(`It asks to run as user ${p.user}.`);
