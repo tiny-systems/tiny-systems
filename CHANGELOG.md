@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Continuing a Claude Code conversation sends only the latest one, and
+  only if it was recorded in the chosen folder (two folders can share
+  Claude Code's conversation folder name).
+
 ## 0.1.6
 
 - Helpers a helper started sit indented under it, with a count you can

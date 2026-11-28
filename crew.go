@@ -1,7 +1,10 @@
 package main
 
 import (
+	"bufio"
 	"context"
+	"encoding/json"
+	"io"
 	"errors"
 	"fmt"
 	"os"
@@ -235,7 +238,7 @@ func (a *App) Folder(dir string) (FolderInfo, error) {
 		return FolderInfo{}, fmt.Errorf("%s isn't a folder", dir)
 	}
 	info := FolderInfo{Path: dir, Name: filepath.Base(dir)}
-	if t, err := latestTranscript(transcriptDir(dir)); err == nil {
+	if t, err := conversationFor(dir); err == nil {
 		info.Session = true
 		info.Recent = time.Since(mtime(t)) < 90*time.Second
 	}
@@ -249,6 +252,75 @@ var notAlnum = regexp.MustCompile(`[^A-Za-z0-9]`)
 func transcriptDir(dir string) string {
 	home, _ := os.UserHomeDir()
 	return filepath.Join(home, ".claude", "projects", notAlnum.ReplaceAllString(dir, "-"))
+}
+
+// conversationFor returns the latest Claude Code conversation recorded in
+// dir itself. Claude Code's folder names are lossy (/a/b-c and /a/b/c
+// share one), so the conversation's own cwd must match.
+func conversationFor(dir string) (string, error) {
+	t, err := latestTranscript(transcriptDir(dir))
+	if err != nil {
+		return "", err
+	}
+	cwd, err := transcriptCwd(t)
+	if err != nil {
+		return "", err
+	}
+	if cwd != dir {
+		return "", fmt.Errorf("the latest Claude Code conversation there was started in %s, not %s", cwd, dir)
+	}
+	return t, nil
+}
+
+// transcriptCwd reads the working folder a conversation recorded.
+func transcriptCwd(path string) (string, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer func() { _ = f.Close() }()
+	sc := bufio.NewScanner(f)
+	sc.Buffer(make([]byte, 1<<20), 64<<20)
+	for n := 0; sc.Scan() && n < 2000; n++ {
+		var line struct {
+			Cwd string `json:"cwd"`
+		}
+		if json.Unmarshal(sc.Bytes(), &line) == nil && line.Cwd != "" {
+			return line.Cwd, nil
+		}
+	}
+	return "", fmt.Errorf("%s records no working folder", filepath.Base(path))
+}
+
+// stageConversation copies just that one conversation into a fresh
+// folder, so a handoff sends it and none of the folder's older ones.
+func stageConversation(dir string) (string, error) {
+	t, err := conversationFor(dir)
+	if err != nil {
+		return "", err
+	}
+	stage, err := os.MkdirTemp("", "tiny-handoff-")
+	if err != nil {
+		return "", err
+	}
+	src, err := os.Open(t)
+	if err != nil {
+		_ = os.RemoveAll(stage)
+		return "", err
+	}
+	defer func() { _ = src.Close() }()
+	dst, err := os.OpenFile(filepath.Join(stage, filepath.Base(t)), os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0o600)
+	if err == nil {
+		_, err = io.Copy(dst, src)
+		if cerr := dst.Close(); err == nil {
+			err = cerr
+		}
+	}
+	if err != nil {
+		_ = os.RemoveAll(stage)
+		return "", err
+	}
+	return stage, nil
 }
 
 func latestTranscript(dir string) (string, error) {
@@ -328,7 +400,14 @@ func (a *App) ship(t Target, store *fleet.Client, name, dir string, withSession 
 	}
 	if withSession {
 		set("sending the Claude Code conversation")
-		if err := store.PushTree(ctx, pod, "/workspace/.claude/projects/"+workspaceSlug, transcriptDir(dir), nil); err != nil {
+		stage, err := stageConversation(dir)
+		if err != nil {
+			fail(err)
+			return
+		}
+		err = store.PushTree(ctx, pod, "/workspace/.claude/projects/"+workspaceSlug, stage, nil)
+		_ = os.RemoveAll(stage)
+		if err != nil {
 			fail(err)
 			return
 		}

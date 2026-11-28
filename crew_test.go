@@ -1,8 +1,11 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestConversationMarkdownReadsLikeTheChat(t *testing.T) {
@@ -30,5 +33,43 @@ func TestSafeLocalNameKeepsAFileInItsFolder(t *testing.T) {
 func TestTranscriptDirMatchesClaudeCode(t *testing.T) {
 	if got := transcriptDir("/Users/me/Work/my.app"); !strings.HasSuffix(got, "/.claude/projects/-Users-me-Work-my-app") {
 		t.Errorf("transcriptDir = %q", got)
+	}
+}
+
+func TestStageConversationSendsOnlyTheLatestForThisFolder(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	proj := filepath.Join(home, "work", "my-app")
+	if err := os.MkdirAll(proj, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	tdir := transcriptDir(proj)
+	if err := os.MkdirAll(tdir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	old := filepath.Join(tdir, "old.jsonl")
+	latest := filepath.Join(tdir, "new.jsonl")
+	_ = os.WriteFile(old, []byte(`{"cwd":"`+proj+`"}`+"\n"), 0o600)
+	_ = os.WriteFile(latest, []byte(`{"type":"mode"}`+"\n"+`{"cwd":"`+proj+`","message":"hi"}`+"\n"), 0o600)
+	past := mtime(latest).Add(-time.Hour)
+	_ = os.Chtimes(old, past, past)
+
+	stage, err := stageConversation(proj)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = os.RemoveAll(stage) }()
+	entries, _ := os.ReadDir(stage)
+	if len(entries) != 1 || entries[0].Name() != "new.jsonl" {
+		t.Fatalf("staged %v, want only new.jsonl", entries)
+	}
+
+	// A different folder whose name maps to the same transcript folder.
+	other := filepath.Join(home, "work", "my", "app")
+	if transcriptDir(other) != tdir {
+		t.Fatal("test needs a colliding folder")
+	}
+	if _, err := stageConversation(other); err == nil {
+		t.Error("staged another folder's conversation")
 	}
 }
